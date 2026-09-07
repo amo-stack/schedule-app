@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>课程表</title>
-<meta name="theme-color" content="#4C86F9">
+<meta name="theme-color" content="#4F46E5">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -53,6 +53,7 @@
     </div>
 
     <div id="emptyState" class="empty" hidden>
+      <div class="eicon">📅</div>
       <p>还没有课程</p>
       <button class="primary" id="emptyImport">导入课表</button>
       <button class="ghost" id="emptyAdd">手动添加</button>
@@ -141,6 +142,12 @@
 
   <main id="viewSettings" class="view" hidden>
     <div class="pad">
+      <section class="card">
+        <h2>外观</h2>
+        <p class="sub">主题模式</p>
+        <div class="chips" id="sTheme"></div>
+      </section>
+
       <section class="card">
         <h2>提醒</h2>
         <p class="sub">默认提前提醒时间（单门课可单独覆盖）</p>

@@ -9,6 +9,20 @@ window.App = window.App || {};
 
   const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 
+  let _mediaWatcher = null;
+  function applyTheme() {
+    const pref = (state.settings.theme || 'auto');
+    const sys = window.matchMedia('(prefers-color-scheme: dark)');
+    const isDark = pref === 'dark' || (pref === 'auto' && sys.matches);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', isDark ? '#0B1020' : '#4F46E5');
+    if (!_mediaWatcher && pref === 'auto') {
+      _mediaWatcher = sys;
+      sys.addEventListener('change', () => { if ((state.settings.theme || 'auto') === 'auto') applyTheme(); });
+    }
+  }
+
   const state = {
     page: 'home',
     viewMode: 'week',
@@ -95,10 +109,39 @@ window.App = window.App || {};
     else renderDay();
   }
 
+  function renderGridHead() {
+    const head = $('gridHead');
+    head.innerHTML = '';
+    const today = todayDow();
+    const monday = Term.dateOfTermWeek(state.term.startDate, state.week, 1);
+    for (let d = 1; d <= 7; d++) {
+      const date = Term.addDays(monday, d - 1);
+      const md = date.getMonth() * 100 + date.getDate();
+      const el = document.createElement('div');
+      el.className = 'day-head' + (d === today ? ' today' : '');
+      el.innerHTML = `${WEEK_LABELS[d - 1]}<span class="dnum">${md}</span>`;
+      head.appendChild(el);
+    }
+  }
+
+  function lighten(hex, amt) {
+    const n = parseInt(String(hex || '#6366F1').replace('#', ''), 16);
+    const r = Math.min(255, ((n >> 16) & 0xff) + amt);
+    const g = Math.min(255, ((n >> 8) & 0xff) + amt);
+    const b = Math.min(255, (n & 0xff) + amt);
+    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+  }
+
+  function todayDow() {
+    return ((new Date().getDay() + 6) % 7) + 1; // 1=周一 ... 7=周日
+  }
+
   function renderGrid() {
+    renderGridHead();
     const sections = state.settings.sectionTimes;
     const visible = state.courses.filter((c) => (c.weeks || []).indexOf(state.week) >= 0);
     const body = $('gridBody');
+    const today = todayDow();
     body.innerHTML = '';
 
     sections.forEach((s, i) => {
@@ -114,10 +157,11 @@ window.App = window.App || {};
         if (c) {
           const span = Math.max(1, (c.endSection || c.startSection) - c.startSection + 1);
           const b = document.createElement('div');
-          b.className = 'course-block';
+          b.className = 'course-block' + (span === 1 ? ' short' : '');
           b.style.gridColumn = String(d + 1);
           b.style.gridRow = `${i + 1} / span ${span}`;
-          b.style.background = c.color;
+          b.style.setProperty('--cbg', c.color);
+          b.style.setProperty('--cbg2', lighten(c.color, 26));
           b.innerHTML = `<div class="n"></div><div class="p"></div>`;
           b.querySelector('.n').textContent = c.name;
           b.querySelector('.p').textContent = c.location || '';
@@ -125,7 +169,7 @@ window.App = window.App || {};
           body.appendChild(b);
         } else {
           const e = document.createElement('div');
-          e.className = 'cell-empty';
+          e.className = 'cell-empty' + (d === today ? ' cell-col-today' : '');
           e.style.gridColumn = String(d + 1);
           e.style.gridRow = String(i + 1);
           body.appendChild(e);
@@ -419,6 +463,16 @@ window.App = window.App || {};
     const s = Store.getSettings();
     const t = Store.getTerm();
 
+    renderChips($('sTheme'), [
+      { label: '跟随系统', value: 'auto' },
+      { label: '浅色', value: 'light' },
+      { label: '深色', value: 'dark' },
+    ], s.theme, (v) => {
+      s.theme = v;
+      Store.setSettings(s);
+      applyTheme();
+    });
+
     renderChips($('sRemind'), Store.REMIND_OPTIONS.map((v) => ({ label: v === 0 ? '不提醒' : `提前${v}分`, value: v })), s.defaultRemindMin, (v) => {
       s.defaultRemindMin = v;
       Store.setSettings(s);
@@ -517,6 +571,7 @@ window.App = window.App || {};
   }
 
   window.addEventListener('DOMContentLoaded', function () {
+    applyTheme();
     reload();
     refreshWeek();
     bind();

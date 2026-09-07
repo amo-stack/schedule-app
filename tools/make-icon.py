@@ -2,7 +2,7 @@
 import zlib, struct, os, sys
 
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'www', 'icons')
-BG = (76, 134, 249, 255)   # 主色 #4C86F9
+BG = (79, 70, 229, 255)   # 主色 #4F46E5
 FG = (255, 255, 255, 255)
 
 

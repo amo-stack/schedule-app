@@ -18,7 +18,7 @@ App.Store = (function () {
     { index: 10, start: '19:55', end: '20:40' },
   ];
 
-  const COLORS = ['#4C86F9', '#22A06B', '#E8873A', '#B45BC4', '#D9455F', '#0E9AA7', '#7A6FF0', '#C99A2E'];
+  const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#A855F7', '#F43F5E', '#06B6D4', '#8B5CF6', '#F97316'];
 
   const REMIND_OPTIONS = [0, 5, 10, 20, 30, 60];
 
@@ -52,6 +52,7 @@ App.Store = (function () {
   function defaultSettings() {
     return {
       defaultRemindMin: 20,
+      theme: 'auto',
       visionProvider: 'off',
       apiKey: '',
       apiBase: '',
