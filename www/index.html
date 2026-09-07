@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>课程表</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <h1 id="pageTitle">课程表</h1>
+    <button class="link-btn" id="btnSettings" hidden>设置</button>
+    <button class="link-btn" id="btnBack" hidden>返回</button>
+    <button class="link-btn right" id="btnSave" hidden>保存</button>
+  </header>
+
+  <main id="viewHome" class="view">
+    <div class="weekbar">
+      <button class="arrow" id="prevWeek">&lsaquo;</button>
+      <div class="weekinfo">
+        <span id="weekLabel">第 1 周</span>
+        <span class="sub" id="weekDate"></span>
+      </div>
+      <button class="arrow" id="nextWeek">&rsaquo;</button>
+      <div class="switcher">
+        <button class="seg active" data-view="week">周</button>
+        <button class="seg" data-view="day">日</button>
+      </div>
+    </div>
+
+    <div id="gridWrap" class="grid-wrap">
+      <div class="grid-head">
+        <div class="col-time"></div>
+        <div class="day-head">一</div>
+        <div class="day-head">二</div>
+        <div class="day-head">三</div>
+        <div class="day-head">四</div>
+        <div class="day-head">五</div>
+        <div class="day-head">六</div>
+        <div class="day-head">日</div>
+      </div>
+      <div class="grid-body" id="gridBody"></div>
+    </div>
+
+    <div id="dayWrap" class="day-wrap" hidden>
+      <div class="day-tabs" id="dayTabs"></div>
+      <div id="dayList" class="day-list"></div>
+    </div>
+
+    <div id="emptyState" class="empty" hidden>
+      <p>还没有课程</p>
+      <button class="primary" id="emptyImport">导入课表</button>
+      <button class="ghost" id="emptyAdd">手动添加</button>
+    </div>
+
+    <button class="fab" id="fabImport">导入课表</button>
+  </main>
+
+  <main id="viewImport" class="view" hidden>
+    <div class="pad">
+      <div class="row-2">
+        <button class="outline" id="btnCamera">拍照识别</button>
+        <button class="outline" id="btnAlbum">从相册导入</button>
+      </div>
+      <div id="recognizeStatus" class="status" hidden></div>
+      <div id="resultBox" hidden>
+        <p class="hint" id="resultHint"></p>
+        <div id="resultList" class="result-list"></div>
+        <button class="primary block" id="btnImportSelected">导入选中的课程</button>
+      </div>
+      <div class="tips">
+        <p>识别引擎：<b id="engineName">未配置</b></p>
+        <p class="sub">未配置 API Key 时识别不可用，可手动添加课程；配置后准确率显著提升。</p>
+      </div>
+    </div>
+  </main>
+
+  <main id="viewCourse" class="view" hidden>
+    <div class="pad">
+      <label class="field">
+        <span>课程名称</span>
+        <input type="text" id="fName" placeholder="高等数学">
+      </label>
+      <label class="field">
+        <span>任课教师</span>
+        <input type="text" id="fTeacher" placeholder="选填">
+      </label>
+      <label class="field">
+        <span>上课地点</span>
+        <input type="text" id="fLocation" placeholder="如 明理楼 A301">
+      </label>
+
+      <div class="field">
+        <span>星期</span>
+        <div class="chips" id="fDay"></div>
+      </div>
+
+      <div class="field">
+        <span>开始节次</span>
+        <div class="chips" id="fSectionStart"></div>
+      </div>
+
+      <div class="field">
+        <span>结束节次</span>
+        <div class="chips" id="fSectionEnd"></div>
+      </div>
+
+      <div class="field">
+        <span>上课时间</span>
+        <div class="time-row">
+          <input type="time" id="fStart">
+          <span class="dash">-</span>
+          <input type="time" id="fEnd">
+        </div>
+      </div>
+
+      <label class="field">
+        <span>上课周次（留空=全周）</span>
+        <input type="text" id="fWeeks" placeholder="如 1-16周(双)">
+        <em class="preview" id="weeksPreview"></em>
+      </label>
+
+      <div class="field">
+        <span>提醒提前量</span>
+        <div class="chips" id="fRemind"></div>
+      </div>
+
+      <div class="field">
+        <span>颜色</span>
+        <div class="colors" id="fColor"></div>
+      </div>
+
+      <button class="danger block" id="btnDelete" hidden>删除这门课</button>
+    </div>
+  </main>
+
+  <main id="viewSettings" class="view" hidden>
+    <div class="pad">
+      <section class="card">
+        <h2>提醒</h2>
+        <p class="sub">默认提前提醒时间（单门课可单独覆盖）</p>
+        <div class="chips" id="sRemind"></div>
+        <p class="sub" id="pendingInfo"></p>
+        <button class="primary block" id="btnReschedule">保存并重排所有提醒</button>
+      </section>
+
+      <section class="card">
+        <h2>学期</h2>
+        <label class="field">
+          <span>第一周周一日期</span>
+          <input type="date" id="sStart">
+        </label>
+        <label class="field">
+          <span>总周数</span>
+          <input type="number" id="sTotalWeeks">
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>课表识别</h2>
+        <p class="sub">配置后识别准确率更高；不配置也能用，可手动添加课程。</p>
+        <div class="chips" id="sProvider"></div>
+        <div id="keyBox" hidden>
+          <label class="field">
+            <span>API Key</span>
+            <input type="password" id="sApiKey" placeholder="粘贴你的 Key">
+          </label>
+          <label class="field">
+            <span>接口地址（选填）</span>
+            <input type="text" id="sApiBase" placeholder="默认自动">
+          </label>
+          <label class="field">
+            <span>模型名（选填）</span>
+            <input type="text" id="sModel" placeholder="glm-4v-flash">
+          </label>
+        </div>
+        <button class="primary block" id="btnSaveRecog">保存识别设置</button>
+      </section>
+
+      <section class="card">
+        <h2>数据</h2>
+        <p class="sub" id="courseCount"></p>
+        <button class="danger block" id="btnClear">清空所有课程</button>
+      </section>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+</div>
+
+<script src="js/weeks.js"></script>
+<script src="js/term.js"></script>
+<script src="js/store.js"></script>
+<script src="js/scheduler.js"></script>
+<script src="js/vision.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

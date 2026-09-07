@@ -1,0 +1,129 @@
+window.App = window.App || {};
+
+App.Store = (function () {
+  const K_COURSES = 'schedule.courses';
+  const K_SETTINGS = 'schedule.settings';
+  const K_TERM = 'schedule.term';
+
+  const DEFAULT_SECTIONS = [
+    { index: 1, start: '08:00', end: '08:45' },
+    { index: 2, start: '08:55', end: '09:40' },
+    { index: 3, start: '10:00', end: '10:45' },
+    { index: 4, start: '10:55', end: '11:40' },
+    { index: 5, start: '14:00', end: '14:45' },
+    { index: 6, start: '14:55', end: '15:40' },
+    { index: 7, start: '16:00', end: '16:45' },
+    { index: 8, start: '16:55', end: '17:40' },
+    { index: 9, start: '19:00', end: '19:45' },
+    { index: 10, start: '19:55', end: '20:40' },
+  ];
+
+  const COLORS = ['#4C86F9', '#22A06B', '#E8873A', '#B45BC4', '#D9455F', '#0E9AA7', '#7A6FF0', '#C99A2E'];
+
+  const REMIND_OPTIONS = [0, 5, 10, 20, 30, 60];
+
+  function read(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  function write(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.warn('write failed', e);
+    }
+  }
+
+  function defaultTerm() {
+    const monday = App.Term.mondayOf(new Date());
+    return {
+      name: '本学期',
+      startDate: App.Term.toISODate(App.Term.addDays(monday, -7)),
+      totalWeeks: 20,
+    };
+  }
+
+  function defaultSettings() {
+    return {
+      defaultRemindMin: 20,
+      visionProvider: 'off',
+      apiKey: '',
+      apiBase: '',
+      model: '',
+      sectionTimes: DEFAULT_SECTIONS,
+    };
+  }
+
+  function getCourses() {
+    return read(K_COURSES, []);
+  }
+
+  function setCourses(list) {
+    write(K_COURSES, list);
+  }
+
+  function upsertCourse(c) {
+    const list = getCourses();
+    const i = list.findIndex((x) => x.id === c.id);
+    if (i >= 0) list[i] = c;
+    else list.push(c);
+    setCourses(list);
+  }
+
+  function deleteCourse(id) {
+    setCourses(getCourses().filter((c) => c.id !== id));
+  }
+
+  function clearCourses() {
+    setCourses([]);
+  }
+
+  function getSettings() {
+    return Object.assign(defaultSettings(), read(K_SETTINGS, {}));
+  }
+
+  function setSettings(s) {
+    write(K_SETTINGS, s);
+  }
+
+  function getTerm() {
+    return Object.assign(defaultTerm(), read(K_TERM, {}));
+  }
+
+  function setTerm(t) {
+    write(K_TERM, t);
+  }
+
+  function newId() {
+    return 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  }
+
+  function colorFor(name) {
+    let h = 0;
+    for (let i = 0; i < String(name).length; i++) h = (h * 31 + String(name).charCodeAt(i)) >>> 0;
+    return COLORS[h % COLORS.length];
+  }
+
+  return {
+    DEFAULT_SECTIONS,
+    COLORS,
+    REMIND_OPTIONS,
+    getCourses,
+    setCourses,
+    upsertCourse,
+    deleteCourse,
+    clearCourses,
+    getSettings,
+    setSettings,
+    getTerm,
+    setTerm,
+    newId,
+    colorFor,
+  };
+})();
