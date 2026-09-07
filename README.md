@@ -27,6 +27,12 @@ capacitor.config.json
 .github/workflows/android.yml   云编译 APK
 ```
 
+## 现在就能用（无需任何账号）
+
+在线地址：https://bffd6e05b78748f1a5e41441026172a9.app.workbuddy.link
+
+手机浏览器打开即可，建议「添加到主屏幕」当 App 用。数据与浏览器绑定，换设备不同步。
+
 ## 本地预览
 
 直接双击 `www/index.html`（或拖进浏览器）。此时为网页预览模式：
@@ -35,6 +41,20 @@ capacitor.config.json
 - 提醒只计算不实际推送（需打包成 App 后生效）
 
 ## 打包成 APK
+
+### 懒人方式（推荐）
+
+1. 注册 GitHub：https://github.com/signup
+2. 生成 token：https://github.com/settings/tokens/new
+   - 若是 Fine-grained 页面，点左下角 **Generate new token (classic)**
+   - Note 填 `ScheduleApp`，Expiration 选 `90 days`
+   - 勾选 **`repo`** 和 **`workflow`** → Generate
+   - 复制 `ghp_` 开头的字符串
+3. 双击项目根目录的 **`一键上传GitHub.bat`**，粘贴 token 回车
+
+脚本会自动建仓库、推送、清 token，最后打印编译进度页和 APK 下载链接。**用完记得去 GitHub 把 token 删掉。**
+
+### 手动方式
 
 1. 在 GitHub 新建空仓库（不要勾选 README）
 2. 在项目目录执行：
