@@ -1,0 +1,16 @@
+{
+  "name": "课程表",
+  "short_name": "课程表",
+  "description": "拍照/截图识别课表，上课前自动提醒",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#4C86F9",
+  "theme_color": "#4C86F9",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

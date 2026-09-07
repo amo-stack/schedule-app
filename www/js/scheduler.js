@@ -2,6 +2,8 @@ window.App = window.App || {};
 
 App.Scheduler = (function () {
   const CHANNEL_ID = 'class-reminder';
+  let webTimers = [];
+  let webNotifListeners = [];
 
   function plugin() {
     if (typeof window === 'undefined') return null;
@@ -15,6 +17,11 @@ App.Scheduler = (function () {
   }
 
   async function ensureChannel() {
+    if (isNative()) return ensureNativeChannel();
+    return ensureWebChannel();
+  }
+
+  async function ensureNativeChannel() {
     const p = plugin();
     if (!p) return false;
     try {
@@ -36,6 +43,56 @@ App.Scheduler = (function () {
       console.warn('channel failed', e);
       return false;
     }
+  }
+
+  async function ensureWebChannel() {
+    if (!('Notification' in window)) return false;
+    if (Notification.permission === 'granted') return true;
+    if (Notification.permission === 'denied') return false;
+    try {
+      const r = await Notification.requestPermission();
+      return r === 'granted';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function clearWebTimers() {
+    webTimers.forEach((id) => clearTimeout(id));
+    webTimers = [];
+    webNotifListeners.forEach((n) => { try { n.close && n.close(); } catch (e) {} });
+    webNotifListeners = [];
+  }
+
+  function scheduleWebNotifications(list) {
+    clearWebTimers();
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const now = Date.now();
+    const horizon = now + 7 * 24 * 60 * 60 * 1000; // 7 天内
+    const within = list.filter((it) => {
+      const t = (it.schedule && it.schedule.at && it.schedule.at.getTime()) || 0;
+      return t > now && t <= horizon;
+    });
+    within.forEach((it) => {
+      const fireAt = it.schedule.at.getTime();
+      const delay = Math.min(fireAt - now, 24 * 60 * 60 * 1000); // 单次 setTimeout 不超过 24h
+      const id = setTimeout(() => {
+        try {
+          const n = new Notification(it.title, {
+            body: it.body,
+            icon: './icons/icon-192.png',
+            badge: './icons/icon-192.png',
+            tag: 'reminder-' + it.id,
+            renotify: true,
+          });
+          webNotifListeners.push(n);
+          n.onclick = () => { try { window.focus(); n.close(); } catch (e) {} };
+        } catch (e) {
+          console.warn('web notify failed', e);
+        }
+      }, delay);
+      webTimers.push(id);
+    });
   }
 
   /**
@@ -76,6 +133,7 @@ App.Scheduler = (function () {
     const list = buildNotifications(courses, term, settings.defaultRemindMin);
 
     if (!p) {
+      scheduleWebNotifications(list);
       return { native: false, count: list.length };
     }
 
@@ -94,6 +152,7 @@ App.Scheduler = (function () {
       return { native: true, count: list.length };
     } catch (e) {
       console.warn('schedule failed', e);
+      scheduleWebNotifications(list);
       return { native: true, count: 0, error: String(e) };
     }
   }

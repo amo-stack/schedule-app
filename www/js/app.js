@@ -521,6 +521,11 @@ window.App = window.App || {};
     refreshWeek();
     bind();
     showPage('home');
-    if (Scheduler.isNative()) Scheduler.ensureChannel();
+    // 申请通知权限（原生走系统对话框；网页走浏览器原生通知）
+    Scheduler.ensureChannel();
+    // 注册 Service Worker，离线/重打开都可用
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW register failed', e));
+    }
   });
 })();
