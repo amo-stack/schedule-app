@@ -108,6 +108,7 @@ window.App = window.App || {};
       $('tabExam').classList.add('active');
       $('tabSchedule').classList.remove('active');
       state.examEditingId = null;
+      state.page = 'home';
       $('viewExam').hidden = false;
       $('viewExamEdit').hidden = true;
       renderExam();
@@ -118,7 +119,11 @@ window.App = window.App || {};
     }
   }
 
-  function onBack() {
+  let lastBackAt = 0;
+
+  // 统一的返回处理：考试编辑→考试列表→课程表主页→退出 App
+  function handleBack() {
+    // 1. 考试编辑中 → 回考试列表
     if (state.tab === 'exam' && !$('viewExamEdit').hidden) {
       state.examEditingId = null;
       $('viewExamEdit').hidden = true;
@@ -127,7 +132,24 @@ window.App = window.App || {};
       renderExam();
       return;
     }
-    setTab('schedule');
+    // 2. 在设置/课程/导入子页 → 回课程表主页
+    if (state.tab === 'schedule' && state.page !== 'home') {
+      showPage('home');
+      return;
+    }
+    // 3. 在考试列表页 → 回课程表主页
+    if (state.tab === 'exam') {
+      setTab('schedule');
+      return;
+    }
+    // 4. 已在课程表主页 → 防误触，2 秒内再按一次才退出
+    const now = Date.now();
+    if (now - lastBackAt < 2000) {
+      try { Capacitor.App.exitApp(); } catch (e) {}
+    } else {
+      lastBackAt = now;
+      toast('再按一次退出');
+    }
   }
 
   function onSave() {
@@ -282,6 +304,23 @@ window.App = window.App || {};
     return ((new Date().getDay() + 6) % 7) + 1; // 1=周一 ... 7=周日
   }
 
+  // 让课程块竖排名字完整显示：按节数和名字长度动态压字号
+  function fitCourseName(el, name, span) {
+    const rowH = 58;
+    const gap = 3;
+    const padV = 12; // padding 6+6
+    const avail = span * rowH + (span - 1) * gap - padV;
+    const spacing = 1;
+    let fs = 12;
+    while (fs > 8) {
+      const h = name.length * fs + Math.max(0, name.length - 1) * spacing;
+      if (h <= avail) break;
+      fs -= 1;
+    }
+    el.style.fontSize = fs + 'px';
+    el.style.letterSpacing = spacing + 'px';
+  }
+
   /* ---------- 时间工具 ---------- */
 
   function toMin(hhmm) {
@@ -351,6 +390,7 @@ window.App = window.App || {};
           b.innerHTML = `<div class="n"></div><div class="p"></div>`;
           b.querySelector('.n').textContent = c.name;
           b.querySelector('.p').textContent = c.location || '';
+          fitCourseName(b.querySelector('.n'), c.name, span);
           b.onclick = () => openCourse(c.id);
           body.appendChild(b);
         } else {
@@ -594,11 +634,13 @@ window.App = window.App || {};
   function renderNowLine() {
     const body = $('gridBody');
     let line = $('nowLine');
+    const sections = state.settings.sectionTimes;
+    const today = todayDow();
     if (state.week !== Term.currentWeekOf(state.term.startDate, state.term.totalWeeks)) {
       if (line) line.hidden = true;
       return;
     }
-    const top = nowLineTop(state.settings.sectionTimes);
+    const top = nowLineTop(sections);
     if (top == null) {
       if (line) line.hidden = true;
       return;
@@ -611,6 +653,8 @@ window.App = window.App || {};
     }
     line.hidden = false;
     line.style.top = top + 'px';
+    line.style.gridColumn = String(today + 1); // 时间列占 1，今天列右移
+    line.style.gridRow = `1 / span ${sections.length}`;
     const d = new Date();
     line.dataset.time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
@@ -1294,16 +1338,39 @@ window.App = window.App || {};
         roundRect(ctx, x, yy, w, h, 8);
         ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.textAlign = 'left';
-        ctx.font = '600 11px sans-serif';
-        const tx = x + 6;
-        const ty = yy + (span === 1 ? h / 2 : 12);
-        ctx.fillText(course.name, tx, ty);
-        if (span > 1 || !course.location) {
-          ctx.font = '9px sans-serif';
-          ctx.globalAlpha = 0.9;
-          ctx.fillText(course.location || (isMakeup ? '补' : ''), tx, ty + 13);
-          ctx.globalAlpha = 1;
+
+        // 课程名竖排绘制，按块高动态压字号，保证完整显示在卡片内
+        const availH = h - 12;
+        const spacing = 1;
+        let fs = 12;
+        while (fs > 8) {
+          const need = course.name.length * fs + Math.max(0, course.name.length - 1) * spacing;
+          if (need <= availH) break;
+          fs -= 1;
+        }
+        ctx.font = `600 ${fs}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const cx = x + w / 2;
+        let cy = yy + 8 + fs / 2;
+        for (let k = 0; k < course.name.length; k++) {
+          ctx.fillText(course.name[k], cx, cy);
+          cy += fs + spacing;
+        }
+
+        // 地点也竖排，放在名字右侧（仅非短块且放得下）
+        if (span > 1 && course.location) {
+          const locFs = 9;
+          const locH = course.location.length * locFs + Math.max(0, course.location.length - 1) * spacing;
+          if (locH <= availH) {
+            ctx.font = `${locFs}px sans-serif`;
+            let ly = yy + 8 + locFs / 2;
+            const lx = cx + fs / 2 + locFs + 2;
+            for (let k = 0; k < course.location.length; k++) {
+              ctx.fillText(course.location[k], lx, ly);
+              ly += locFs + spacing;
+            }
+          }
         }
       }
     });
@@ -1553,7 +1620,7 @@ window.App = window.App || {};
 
   function bind() {
     $('btnSettings').onclick = () => showPage('settings');
-    $('btnBack').onclick = onBack;
+    $('btnBack').onclick = handleBack;
     $('btnSave').onclick = onSave;
 
     $('tabSchedule').onclick = () => setTab('schedule');
@@ -1690,5 +1757,13 @@ window.App = window.App || {};
     }
     // 预建「绕过勿扰」的提醒渠道，保证静音时上课提醒仍响
     Scheduler.prepareSilenceChannel();
+
+    // 监听 Android 硬件返回键，复用同一套返回逻辑
+    try {
+      if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+        const capApp = Capacitor.Plugins && Capacitor.Plugins.App;
+        if (capApp && capApp.addListener) capApp.addListener('backButton', handleBack);
+      }
+    } catch (e) { /* 非原生环境忽略 */ }
   });
 })();
