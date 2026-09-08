@@ -1310,6 +1310,7 @@ window.App = window.App || {};
   }
 
   function exportWeekImage() {
+    if (!state.term) return toast('请先在设置里填写学期开始日期');
     const sections = state.settings.sectionTimes;
     const adj = adjSets();
     const timeW = 42, colW = 58, rowH = 56, pad = 16, headH = 44;
@@ -1429,16 +1430,25 @@ window.App = window.App || {};
 
     c.toBlob((blob) => {
       if (!blob) return toast('生成图片失败');
-      const file = new File([blob], `课程表-第${state.week}周.png`, { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: '课程表' }).catch(() => {});
-        return;
+      try {
+        const file = new File([blob], `课程表-第${state.week}周.png`, { type: 'image/png' });
+        const url = URL.createObjectURL(blob);
+        // 兜底：永远先触发下载（安卓 webview 可靠），share 失败也不影响保存
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // 若系统支持分享，再弹分享面板（不阻塞已下载）
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: '课程表' }).catch(() => {});
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+        toast('图片已生成，已保存到下载目录（可再点分享）');
+      } catch (e) {
+        toast('导出失败：' + (e && e.message ? e.message : e));
       }
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = file.name;
-      a.click();
-      toast('图片已生成');
     }, 'image/png');
   }
 

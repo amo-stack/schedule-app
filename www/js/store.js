@@ -6,17 +6,13 @@ App.Store = (function () {
   const K_TERM = 'schedule.term';
   const K_EXAMS = 'schedule.exams';
 
+  // 大学课表按「大节」计，每大节 90 分钟（1.5 小时），含课间
   const DEFAULT_SECTIONS = [
-    { index: 1, start: '08:00', end: '08:45' },
-    { index: 2, start: '08:55', end: '09:40' },
-    { index: 3, start: '10:00', end: '10:45' },
-    { index: 4, start: '10:55', end: '11:40' },
-    { index: 5, start: '14:00', end: '14:45' },
-    { index: 6, start: '14:55', end: '15:40' },
-    { index: 7, start: '16:00', end: '16:45' },
-    { index: 8, start: '16:55', end: '17:40' },
-    { index: 9, start: '19:00', end: '19:45' },
-    { index: 10, start: '19:55', end: '20:40' },
+    { index: 1, start: '08:00', end: '09:30' },
+    { index: 2, start: '09:40', end: '11:10' },
+    { index: 3, start: '14:00', end: '15:30' },
+    { index: 4, start: '15:40', end: '17:10' },
+    { index: 5, start: '19:00', end: '20:30' },
   ];
 
   const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#A855F7', '#F43F5E', '#06B6D4', '#8B5CF6', '#F97316'];

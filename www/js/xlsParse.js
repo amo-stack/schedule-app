@@ -44,16 +44,16 @@ App.XlsParse = (function () {
       const t = s(row[c]);
       if (!t) continue;
       const m = t.match(/第?\s*(\d{1,2})\s*[-~]\s*(\d{1,2})\s*节/);
-      if (m) return { start: parseInt(m[1], 10), end: parseInt(m[2], 10) };
+      if (m) return { start: Math.ceil(parseInt(m[1], 10) / 2), end: Math.ceil(parseInt(m[2], 10) / 2) };
       const m2 = t.match(/第?\s*(\d{1,2})\s*节/);
       if (m2) {
-        const n = parseInt(m2[1], 10);
+        const n = Math.ceil(parseInt(m2[1], 10) / 2);
         return { start: n, end: n };
       }
-      const cn = t.match(/^\s*([一二三四五六])\s*$/);
+      const cn = t.match(/^\s*([一二三四五])\s*$/);
       if (cn) {
         const n = CN_NUM[cn[1]];
-        return { start: 2 * n - 1, end: 2 * n };
+        return { start: n, end: n };
       }
     }
     return null;
@@ -82,8 +82,9 @@ App.XlsParse = (function () {
     blocks.forEach((b) => {
       const m = b.match(re);
       if (m) {
-        const start = parseInt(m[2], 10);
-        const end = m[3] ? parseInt(m[3], 10) : start;
+        // 教务系统的 "1-2节" 等表示的是「大节」(每大节 90 分钟)，映射成 major 编号
+        const start = Math.ceil(parseInt(m[2], 10) / 2);
+        const end = Math.ceil((m[3] ? parseInt(m[3], 10) : parseInt(m[2], 10)) / 2);
         out.push({
           name: s(m[1]),
           teacher: s(m[6] || ''),
