@@ -3,3 +3,5 @@ android/
 www/dist/
 .DS_Store
 *.log
+
+_sample-timetable.png

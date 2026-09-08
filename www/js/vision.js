@@ -24,7 +24,9 @@ App.Vision = (function () {
 要求：
 1. 一格多门课（不同周次）要拆成多条。
 2. 跨节次的课只输出一条，startSection/endSection 标明跨度。
-3. 无法确定就填 null，不要编造。`;
+3. 无法确定就填 null，不要编造。
+4. 课表上若标注了节次（如"第1-2节"、左侧节次列、表头的 1 2 3 4），startSection 和 endSection 必须填数字，不要填 null。
+5. 从图片推断不出的节次，就按该行的上课时间估：08:00 附近=第1节，10:00 附近=第3节，14:00 附近=第5节，16:00 附近=第7节，19:00 附近=第9节。`;
 
   function requestError(message, status) {
     const e = new Error(message);
@@ -114,9 +116,7 @@ App.Vision = (function () {
         { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
         { model, temperature: 0, max_tokens: 16, messages: [{ role: 'user', content: '回复两个字：正常' }] }
       );
-      const msg = json && json.choices && json.choices[0] && json.choices[0].message;
-      const reply = msg ? String(msg.content || '').trim() : '';
-      return { ok: true, provider: p.name, model, ms: Date.now() - t0, reply: reply.slice(0, 40) };
+      return { ok: true, provider: p.name, model, ms: Date.now() - t0 };
     } catch (e) {
       const hint = explain(e && e.status);
       return { ok: false, error: hint || ((e && e.message) || String(e)) };

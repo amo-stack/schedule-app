@@ -296,7 +296,7 @@ window.App = window.App || {};
     });
   }
 
-  function guessSection(hhmm, sections) {
+  function guessSection(hhmm, sections, useEnd) {
     if (!hhmm) return 1;
     const m = String(hhmm).match(/(\d{1,2}):(\d{2})/);
     if (!m) return 1;
@@ -304,10 +304,13 @@ window.App = window.App || {};
     let best = sections[0];
     let bestDiff = Infinity;
     sections.forEach((s) => {
-      const sm = s.start.match(/(\d{1,2}):(\d{2})/);
+      const sm = String(useEnd ? s.end || s.start : s.start).match(/(\d{1,2}):(\d{2})/);
       if (!sm) return;
       const d = Math.abs(parseInt(sm[1], 10) * 60 + parseInt(sm[2], 10) - t);
-      if (d < bestDiff) { bestDiff = d; best = s; }
+      if (d < bestDiff) {
+        bestDiff = d;
+        best = s;
+      }
     });
     return best.index;
   }
@@ -321,7 +324,10 @@ window.App = window.App || {};
     chosen.forEach((it) => {
       const p = Weeks.parseWeeksExpr(it.weeksExpr || '', term.totalWeeks);
       const startSection = it.startSection || guessSection(it.startTime, settings.sectionTimes);
-      const endSection = it.endSection || startSection;
+      const endSection = Math.max(
+        startSection,
+        it.endSection || guessSection(it.endTime || it.startTime, settings.sectionTimes, true)
+      );
       const s0 = settings.sectionTimes.find((x) => x.index === startSection);
       const s1 = settings.sectionTimes.find((x) => x.index === endSection);
       Store.upsertCourse({
@@ -556,7 +562,7 @@ window.App = window.App || {};
 
     if (r.ok) {
       box.style.color = 'var(--success)';
-      box.textContent = `连接成功 · ${r.provider} · ${r.model} · ${r.ms}ms${r.reply ? ' · 模型回复「' + r.reply + '」' : ''}`;
+      box.textContent = `连接成功 · ${r.provider} · ${r.model} · ${r.ms}ms，可以导入课表了`;
       s.apiKey = cfg.apiKey;
       s.apiBase = cfg.apiBase;
       s.model = cfg.model;
