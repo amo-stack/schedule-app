@@ -999,6 +999,15 @@ window.App = window.App || {};
     return best.index;
   }
 
+  function shiftResults(delta) {
+    if (!state.results || !state.results.length) return;
+    state.results.forEach((it) => {
+      const d = (it.dayOfWeek || 1) - 1;
+      it.dayOfWeek = ((d + delta) % 7 + 7) % 7 + 1;
+    });
+    renderResults();
+  }
+
   function importSelected() {
     const term = Store.getTerm();
     const settings = Store.getSettings();
@@ -1700,6 +1709,8 @@ window.App = window.App || {};
       state.selected = new Set();
       renderResults();
     };
+    $('btnShiftResultsPrev').onclick = () => { shiftResults(-1); toast('预览已提前一天，确认后再导入'); };
+    $('btnShiftResultsNext').onclick = () => { shiftResults(1); toast('预览已延后一天，确认后再导入'); };
 
     $('fWeeks').oninput = updateWeeksPreview;
     $('btnDelete').onclick = () => {
@@ -1735,8 +1746,8 @@ window.App = window.App || {};
       await refreshSilenceStatus();
     };
 
-    $('btnShiftPrev').onclick = () => { shiftDayOfWeek(-1); showToast('课程已整体提前一天'); };
-    $('btnShiftNext').onclick = () => { shiftDayOfWeek(1); showToast('课程已整体延后一天'); };
+    $('btnShiftPrev').onclick = () => { shiftDayOfWeek(-1); toast('课程已整体提前一天'); };
+    $('btnShiftNext').onclick = () => { shiftDayOfWeek(1); toast('课程已整体延后一天'); };
 
     $('btnDedupe').onclick = () => {
       const removed = Store.dedupeCourses();
