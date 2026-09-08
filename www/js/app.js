@@ -41,9 +41,6 @@ window.App = window.App || {};
     courses: Store.getCourses(),
   };
 
-  // 数据 schema 版本：数据结构/解析规则有重大变更时递增，用于提示用户重新导入
-  const APP_SCHEMA_VERSION = 19;
-
   const $ = (id) => document.getElementById(id);
 
   function toast(msg) {
@@ -185,11 +182,9 @@ window.App = window.App || {};
 
     if (empty) {
       $('conflictBar').hidden = true;
-      $('versionBanner').hidden = true;
       return;
     }
 
-    renderVersionBanner();
     renderConflictBar();
     renderExamWidget();
 
@@ -251,37 +246,6 @@ window.App = window.App || {};
     bar.appendChild(txt);
     bar.appendChild(more);
     bar.onclick = () => showPage('settings');
-  }
-
-  function renderVersionBanner() {
-    const box = $('versionBanner');
-    if (!box) return;
-    const stored = localStorage.getItem('schedule.schemaVersion');
-    const courses = Store.getCourses();
-    if (stored === String(APP_SCHEMA_VERSION) || !courses.length) {
-      box.hidden = true;
-      return;
-    }
-    box.hidden = false;
-    box.innerHTML = '';
-    const txt = document.createElement('span');
-    txt.textContent = '检测到课表数据来自旧版本，日期可能错位。建议清空后重新导入 xls。';
-    const btn = document.createElement('button');
-    btn.textContent = '立即修复';
-    btn.className = 'primary sm';
-    btn.onclick = () => {
-      Store.clearCourses();
-      localStorage.removeItem('schedule.schemaVersion');
-      renderVersionBanner();
-      showPage('import');
-      toast('已清空旧课，请重新导入 xls');
-    };
-    box.appendChild(txt);
-    box.appendChild(btn);
-  }
-
-  function markSchemaCurrent() {
-    try { localStorage.setItem('schedule.schemaVersion', String(APP_SCHEMA_VERSION)); } catch (e) {}
   }
 
   function renderConflictList() {
@@ -1122,7 +1086,6 @@ window.App = window.App || {};
       Store.upsertCourse(course);
     });
 
-    markSchemaCurrent();
     afterDataChange(`已导入 ${chosen.length} 门课`, true);
   }
 
@@ -1868,7 +1831,6 @@ window.App = window.App || {};
     $('btnClear').onclick = () => {
       if (!confirm('确定清空所有课程与提醒？')) return;
       Store.clearCourses();
-      localStorage.removeItem('schedule.schemaVersion');
       afterDataChange('已清空', true);
     };
   }
