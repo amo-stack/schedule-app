@@ -104,29 +104,50 @@ App.Scheduler = (function () {
     const list = [];
     const defaultRemindMin = settings.defaultRemindMin;
     const bringBook = settings.remindBringBook;
+    const endRemindMin = settings.endRemindMin > 0 ? settings.endRemindMin : 0;
     courses.forEach((c, index) => {
       const before = c.remindBeforeMin >= 0 ? c.remindBeforeMin : defaultRemindMin;
-      if (before <= 0) return;
       (c.weeks || []).forEach((week) => {
         const day = App.Term.dateOfTermWeek(term.startDate, week, c.dayOfWeek);
-        const startAt = App.Term.combineDateTime(day, c.startTime);
-        const fireAt = startAt.getTime() - before * 60000;
-        if (fireAt <= now) return;
-        const base = [c.location, c.teacher, `${c.startTime}-${c.endTime}`].filter(Boolean).join(' · ');
-        let suffix = '';
-        if (c.book) suffix = `记得带《${c.book}》📚`;
-        else if (bringBook) suffix = '记得带书 📚';
-        const body = base ? `${base} · ${suffix}` : suffix;
-        list.push({
-          id: (index + 1) * 1000 + week,
-          title: `${before} 分钟后上课 · ${c.name}`,
-          body,
-          schedule: { at: new Date(fireAt), allowWhileIdle: true },
-          channelId: CHANNEL_ID,
-          sound: 'default',
-          smallIcon: 'ic_stat_icon_config_sample',
-          extra: { courseId: c.id, week },
-        });
+        // 上课前提醒
+        if (before > 0) {
+          const startAt = App.Term.combineDateTime(day, c.startTime);
+          const fireAt = startAt.getTime() - before * 60000;
+          if (fireAt > now) {
+            const base = [c.location, c.teacher, `${c.startTime}-${c.endTime}`].filter(Boolean).join(' · ');
+            let suffix = '';
+            if (c.book) suffix = `记得带《${c.book}》📚`;
+            else if (bringBook) suffix = '记得带书 📚';
+            const body = base ? `${base} · ${suffix}` : suffix;
+            list.push({
+              id: (index + 1) * 1000 + week,
+              title: `${before} 分钟后上课 · ${c.name}`,
+              body,
+              schedule: { at: new Date(fireAt), allowWhileIdle: true },
+              channelId: CHANNEL_ID,
+              sound: 'default',
+              smallIcon: 'ic_stat_icon_config_sample',
+              extra: { courseId: c.id, week },
+            });
+          }
+        }
+        // 下课前提醒
+        if (endRemindMin > 0) {
+          const endAt = App.Term.combineDateTime(day, c.endTime);
+          const fireAt = endAt.getTime() - endRemindMin * 60000;
+          if (fireAt > now) {
+            list.push({
+              id: 500000 + (index + 1) * 1000 + week,
+              title: `还有 ${endRemindMin} 分钟下课 · ${c.name}`,
+              body: [c.location, c.teacher].filter(Boolean).join(' · ') || '准备好下课啦',
+              schedule: { at: new Date(fireAt), allowWhileIdle: true },
+              channelId: CHANNEL_ID,
+              sound: 'default',
+              smallIcon: 'ic_stat_icon_config_sample',
+              extra: { courseId: c.id, week },
+            });
+          }
+        }
       });
     });
     return list;

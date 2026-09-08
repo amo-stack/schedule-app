@@ -4,6 +4,7 @@ App.Store = (function () {
   const K_COURSES = 'schedule.courses';
   const K_SETTINGS = 'schedule.settings';
   const K_TERM = 'schedule.term';
+  const K_EXAMS = 'schedule.exams';
 
   const DEFAULT_SECTIONS = [
     { index: 1, start: '08:00', end: '08:45' },
@@ -60,6 +61,7 @@ App.Store = (function () {
       sectionTimes: DEFAULT_SECTIONS,
       adjustments: { holidays: [], makeup: [] },
       remindBringBook: true,
+      endRemindMin: 5,
     };
   }
 
@@ -103,6 +105,28 @@ App.Store = (function () {
     write(K_TERM, t);
   }
 
+  /* ---------- 考试 ---------- */
+
+  function getExams() {
+    return read(K_EXAMS, []);
+  }
+
+  function setExams(list) {
+    write(K_EXAMS, list);
+  }
+
+  function upsertExam(e) {
+    const list = getExams();
+    const i = list.findIndex((x) => x.id === e.id);
+    if (i >= 0) list[i] = e;
+    else list.push(e);
+    setExams(list);
+  }
+
+  function deleteExam(id) {
+    setExams(getExams().filter((x) => x.id !== id));
+  }
+
   function newId() {
     return 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   }
@@ -126,6 +150,10 @@ App.Store = (function () {
     setSettings,
     getTerm,
     setTerm,
+    getExams,
+    setExams,
+    upsertExam,
+    deleteExam,
     newId,
     colorFor,
   };

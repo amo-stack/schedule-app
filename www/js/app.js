@@ -26,10 +26,12 @@ window.App = window.App || {};
   const state = {
     page: 'home',
     viewMode: 'week',
+    tab: 'schedule',
     week: 1,
     day: new Date().getDay() === 0 ? 7 : new Date().getDay(),
     editingId: null,
     editing: null,
+    examEditingId: null,
     results: [],
     selected: new Set(),
     expanded: -1,
@@ -90,6 +92,49 @@ window.App = window.App || {};
     }
   }
 
+  /* ---------- 底部 Tab 切换 ---------- */
+
+  function setTab(t) {
+    state.tab = t;
+    const schedViews = ['viewHome', 'viewImport', 'viewCourse', 'viewSettings'];
+    if (t === 'exam') {
+      schedViews.forEach((id) => ($(id).hidden = true));
+      $('fabImport').hidden = true;
+      $('fabAdd').hidden = true;
+      $('btnSettings').hidden = true;
+      $('btnBack').hidden = false;
+      $('btnSave').hidden = true;
+      $('pageTitle').textContent = '考试';
+      $('tabExam').classList.add('active');
+      $('tabSchedule').classList.remove('active');
+      state.examEditingId = null;
+      $('viewExam').hidden = false;
+      $('viewExamEdit').hidden = true;
+      renderExam();
+    } else {
+      $('tabSchedule').classList.add('active');
+      $('tabExam').classList.remove('active');
+      showPage(state.page || 'home');
+    }
+  }
+
+  function onBack() {
+    if (state.tab === 'exam' && !$('viewExamEdit').hidden) {
+      state.examEditingId = null;
+      $('viewExamEdit').hidden = true;
+      $('viewExam').hidden = false;
+      $('btnSave').hidden = true;
+      renderExam();
+      return;
+    }
+    setTab('schedule');
+  }
+
+  function onSave() {
+    if (state.tab === 'exam' && state.examEditingId !== undefined) saveExam();
+    else saveCourse();
+  }
+
   /* ---------- 首页 ---------- */
 
   function adjSets() {
@@ -119,9 +164,47 @@ window.App = window.App || {};
     }
 
     renderConflictBar();
+    renderExamWidget();
 
     if (state.viewMode === 'week') renderGrid();
     else renderDay();
+  }
+
+  /* 首页：最近考试倒计时 */
+  function renderExamWidget() {
+    const w = $('examWidget');
+    const e = nearestExam();
+    if (!e) { w.hidden = true; return; }
+    w.hidden = false;
+    w.innerHTML = `
+      <div class="ew-left">
+        <div class="ew-label">最近考试</div>
+        <div class="ew-name"></div>
+        <div class="ew-meta"></div>
+      </div>
+      <div class="ew-count"></div>`;
+    w.querySelector('.ew-name').textContent = e.subject;
+    w.querySelector('.ew-meta').textContent = `${e.examDate}${e.examTime ? ' ' + e.examTime : ''} · ${e.location || '地点未填'}`;
+    w.querySelector('.ew-count').textContent = examCountdown(e);
+    w.onclick = () => setTab('exam');
+  }
+
+  function nearestExam() {
+    const now = Date.now();
+    return Store.getExams()
+      .filter((e) => new Date(e.examDate + 'T' + (e.examTime || '23:59')).getTime() >= now - 86400000)
+      .sort((a, b) => new Date(a.examDate + 'T' + (a.examTime || '00:00')) - new Date(b.examDate + 'T' + (b.examTime || '00:00')))[0] || null;
+  }
+
+  function examCountdown(e) {
+    const target = new Date(e.examDate + 'T' + (e.examTime || '23:59'));
+    const diff = target - new Date();
+    const days = Math.floor(diff / 86400000);
+    const hrs = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    if (days > 0) return `${days} 天后`;
+    if (hrs > 0) return `${hrs} 小时 ${mins} 分后`;
+    return `${mins} 分后`;
   }
 
   function renderConflictBar() {
@@ -536,7 +619,7 @@ window.App = window.App || {};
   function startTodayTimer() {
     stopTodayTimer();
     _todayTimer = setInterval(() => {
-      if (state.page !== 'home') return;
+      if (state.tab !== 'schedule' || state.page !== 'home') return;
       if (state.viewMode === 'day' && !$('dayWrap').hidden) renderDay();
       else if (state.viewMode === 'week' && !$('gridWrap').hidden) renderNowLine();
     }, 30000);
@@ -1024,6 +1107,222 @@ window.App = window.App || {};
     afterDataChange('已保存', false);
   }
 
+  /* ---------- 考试 ---------- */
+
+  function renderExam() {
+    const list = $('examList');
+    const exams = Store.getExams().slice().sort(
+      (a, b) => new Date(a.examDate + 'T' + (a.examTime || '00:00')) - new Date(b.examDate + 'T' + (b.examTime || '00:00'))
+    );
+    list.innerHTML = '';
+    $('examEmpty').hidden = exams.length > 0;
+    const now = Date.now();
+    exams.forEach((e) => {
+      const passed = new Date(e.examDate + 'T' + (e.examTime || '23:59')).getTime() < now;
+      const item = document.createElement('div');
+      item.className = 'exam-card' + (passed ? ' passed' : '');
+      item.innerHTML = `
+        <div class="ec-top">
+          <div class="ec-name"></div>
+          <div class="ec-count">${passed ? '已结束' : examCountdown(e)}</div>
+        </div>
+        <div class="ec-meta">${e.examDate}${e.examTime ? ' ' + e.examTime : ''} · ${e.location || '地点未填'}</div>
+        ${e.note ? `<div class="ec-note"></div>` : ''}`;
+      item.querySelector('.ec-name').textContent = e.subject;
+      if (e.note) item.querySelector('.ec-note').textContent = e.note;
+      item.onclick = () => openExam(e.id);
+      list.appendChild(item);
+    });
+  }
+
+  function openExam(id) {
+    state.examEditingId = id;
+    const e = id && id !== 'new' ? Store.getExams().find((x) => x.id === id) : null;
+    $('eSubject').value = e ? e.subject : '';
+    $('eDate').value = e ? e.examDate : '';
+    $('eTime').value = e && e.examTime ? e.examTime : '';
+    $('eLocation').value = e ? (e.location || '') : '';
+    $('eNote').value = e ? (e.note || '') : '';
+    $('eDelete').hidden = !e;
+    $('pageTitle').textContent = e ? '编辑考试' : '添加考试';
+    $('viewExam').hidden = true;
+    $('viewExamEdit').hidden = false;
+    $('btnBack').hidden = false;
+    $('btnSave').hidden = false;
+    $('btnSave').textContent = '保存';
+  }
+
+  function saveExam() {
+    const subject = $('eSubject').value.trim();
+    if (!subject) return toast('请填写考试科目');
+    const examDate = $('eDate').value;
+    if (!examDate) return toast('请选择考试日期');
+    const e = {
+      id: state.examEditingId && state.examEditingId !== 'new' ? state.examEditingId : Store.newId(),
+      subject,
+      examDate,
+      examTime: $('eTime').value || null,
+      location: $('eLocation').value.trim(),
+      note: $('eNote').value.trim(),
+    };
+    Store.upsertExam(e);
+    state.examEditingId = null;
+    $('viewExamEdit').hidden = true;
+    $('viewExam').hidden = false;
+    $('btnSave').hidden = true;
+    renderExam();
+    toast('已保存');
+  }
+
+  async function recognizeExams() {
+    const status = $('examStatus');
+    status.hidden = false;
+    status.textContent = '正在读取图片…';
+    try {
+      const dataUrl = await Vision.pickImage('album');
+      status.textContent = '正在识别考试安排…';
+      const base64 = await Vision.compress(dataUrl, 1280);
+      const settings = Store.getSettings();
+      if (settings.visionProvider === 'off' || !settings.apiKey) {
+        status.innerHTML = '<span style="color:#C0392B">未配置识别 API Key</span><br><span style="font-size:13px;color:#888">在「课程表 → 设置 → 课表识别」里填 Key 后可用</span>';
+        return;
+      }
+      const res = await Vision.recognizeExams(base64, settings);
+      if (!res.ok) {
+        status.innerHTML = `<span style="color:#C0392B">识别失败：${res.error}</span>`;
+        return;
+      }
+      res.items.forEach((it) => Store.upsertExam(Object.assign({ id: Store.newId() }, it)));
+      status.hidden = true;
+      renderExam();
+      toast(`已添加 ${res.items.length} 场考试`);
+    } catch (e) {
+      status.innerHTML = `<span style="color:#C0392B">出错了：${e && e.message ? e.message : e}</span>`;
+    }
+  }
+
+  /* ---------- 课表导出图片 ---------- */
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function exportWeekImage() {
+    const sections = state.settings.sectionTimes;
+    const adj = adjSets();
+    const timeW = 42, colW = 58, rowH = 56, pad = 16, headH = 44;
+    const W = pad * 2 + timeW + 7 * colW;
+    const H = pad * 2 + headH + sections.length * rowH;
+    const scale = 2;
+    const c = document.createElement('canvas');
+    c.width = W * scale;
+    c.height = H * scale;
+    const ctx = c.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.textBaseline = 'middle';
+
+    // 背景（画布风浅灰）
+    ctx.fillStyle = '#EEF1F6';
+    ctx.fillRect(0, 0, W, H);
+
+    // 标题
+    ctx.fillStyle = '#0F172A';
+    ctx.font = '600 16px -apple-system, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`课程表 · 第 ${state.week} 周`, pad, pad + 12);
+
+    // 列头
+    const monday = Term.dateOfTermWeek(state.term.startDate, state.week, 1);
+    const labels = ['一', '二', '三', '四', '五', '六', '日'];
+    ctx.textAlign = 'center';
+    labels.forEach((l, d) => {
+      const x = pad + timeW + d * colW + colW / 2;
+      const date = Term.addDays(monday, d);
+      ctx.fillStyle = '#64748B';
+      ctx.font = '600 13px sans-serif';
+      ctx.fillText(l, x, pad + 30);
+      ctx.fillStyle = '#0F172A';
+      ctx.font = '11px sans-serif';
+      ctx.fillText(`${date.getMonth() + 1}.${date.getDate()}`, x, pad + 44);
+    });
+
+    // 时间列 + 单元格
+    sections.forEach((s, i) => {
+      const y = pad + headH + i * rowH;
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(String(s.index), pad + timeW / 2, y + rowH / 2 - 8);
+      ctx.fillText(s.start, pad + timeW / 2, y + rowH / 2 + 6);
+      for (let d = 0; d < 7; d++) {
+        const x = pad + timeW + d * colW;
+        ctx.fillStyle = '#F8FAFC';
+        roundRect(ctx, x + 1.5, y + 1.5, colW - 3, rowH - 3, 8);
+        ctx.fill();
+      }
+    });
+
+    // 课程块
+    sections.forEach((s, i) => {
+      const y = pad + headH + i * rowH;
+      for (let d = 1; d <= 7; d++) {
+        const date = Term.dateOfTermWeek(state.term.startDate, state.week, d);
+        const dateStr = Term.toISODate(date);
+        if (adj.holidaySet.has(dateStr)) continue;
+        let targetWeek = state.week, targetDow = d, isMakeup = false;
+        if (adj.makeupMap[dateStr]) {
+          const m = adj.makeupMap[dateStr];
+          targetWeek = m.week;
+          targetDow = m.dayOfWeek;
+          isMakeup = true;
+        }
+        const course = state.courses.find(
+          (x) => x.dayOfWeek === targetDow && x.startSection === s.index && (x.weeks || []).indexOf(targetWeek) >= 0
+        );
+        if (!course) continue;
+        const span = Math.max(1, (course.endSection || course.startSection) - course.startSection + 1);
+        const x = pad + timeW + (d - 1) * colW + 2;
+        const yy = y + 2;
+        const w = colW - 4;
+        const h = span * rowH - 4;
+        ctx.fillStyle = course.color || '#6366F1';
+        roundRect(ctx, x, yy, w, h, 8);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.font = '600 11px sans-serif';
+        const tx = x + 6;
+        const ty = yy + (span === 1 ? h / 2 : 12);
+        ctx.fillText(course.name, tx, ty);
+        if (span > 1 || !course.location) {
+          ctx.font = '9px sans-serif';
+          ctx.globalAlpha = 0.9;
+          ctx.fillText(course.location || (isMakeup ? '补' : ''), tx, ty + 13);
+          ctx.globalAlpha = 1;
+        }
+      }
+    });
+
+    c.toBlob((blob) => {
+      if (!blob) return toast('生成图片失败');
+      const file = new File([blob], `课程表-第${state.week}周.png`, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: '课程表' }).catch(() => {});
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = file.name;
+      a.click();
+      toast('图片已生成');
+    }, 'image/png');
+  }
+
   /* ---------- 数据校准：整体移动一天 ---------- */
 
   function shiftDayOfWeek(delta) {
@@ -1118,6 +1417,11 @@ window.App = window.App || {};
 
     renderChips($('sRemind'), Store.REMIND_OPTIONS.map((v) => ({ label: v === 0 ? '不提醒' : `提前${v}分`, value: v })), s.defaultRemindMin, (v) => {
       s.defaultRemindMin = v;
+      Store.setSettings(s);
+    });
+
+    renderChips($('sEndRemind'), [{ label: '不提醒', value: 0 }, { label: '提前3分', value: 3 }, { label: '提前5分', value: 5 }, { label: '提前10分', value: 10 }], s.endRemindMin, (v) => {
+      s.endRemindMin = v;
       Store.setSettings(s);
     });
 
@@ -1228,8 +1532,24 @@ window.App = window.App || {};
 
   function bind() {
     $('btnSettings').onclick = () => showPage('settings');
-    $('btnBack').onclick = () => showPage('home');
-    $('btnSave').onclick = saveCourse;
+    $('btnBack').onclick = onBack;
+    $('btnSave').onclick = onSave;
+
+    $('tabSchedule').onclick = () => setTab('schedule');
+    $('tabExam').onclick = () => setTab('exam');
+    $('btnExport').onclick = exportWeekImage;
+    $('btnAddExam').onclick = () => openExam('new');
+    $('btnExamCamera').onclick = recognizeExams;
+    $('eDelete').onclick = () => {
+      if (!confirm('确定删除这场考试？')) return;
+      if (state.examEditingId) Store.deleteExam(state.examEditingId);
+      state.examEditingId = null;
+      $('viewExamEdit').hidden = true;
+      $('viewExam').hidden = false;
+      $('btnSave').hidden = true;
+      renderExam();
+      toast('已删除');
+    };
 
     $('prevWeek').onclick = () => { state.week = Math.max(1, state.week - 1); renderHome(); };
     $('nextWeek').onclick = () => { state.week = Math.min(state.term.totalWeeks, state.week + 1); renderHome(); };

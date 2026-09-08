@@ -32,7 +32,10 @@
         <button class="seg active" data-view="week">周</button>
         <button class="seg" data-view="day">日</button>
       </div>
+      <button class="ghost sm" id="btnExport">导出</button>
     </div>
+
+    <div id="examWidget" class="exam-widget" hidden></div>
 
     <div id="gridWrap" class="grid-wrap">
       <div id="gridHead" class="grid-head">
@@ -182,6 +185,11 @@
         <h2>提醒</h2>
         <p class="sub">默认提前提醒时间（单门课可单独覆盖）</p>
         <div class="chips" id="sRemind"></div>
+        <div class="field" style="margin-top:14px">
+          <span>下课前提醒</span>
+          <div class="chips" id="sEndRemind"></div>
+          <em class="preview">每节课结束前提醒一次，避免拖堂迟到下一节</em>
+        </div>
         <label class="toggle-row">
           <input type="checkbox" id="sBringBook">
           <span>提醒里加「记得带书」</span>
@@ -269,6 +277,49 @@
       </section>
     </div>
   </main>
+
+  <main id="viewExam" class="view" hidden>
+    <div class="pad">
+      <div id="examList" class="exam-list"></div>
+      <p id="examEmpty" class="sub" hidden>还没有考试，点下方按钮添加</p>
+      <div class="row-2" style="margin-top:14px">
+        <button class="outline" id="btnAddExam">手动添加</button>
+        <button class="outline" id="btnExamCamera">图片识别</button>
+      </div>
+      <div id="examStatus" class="status" hidden></div>
+    </div>
+  </main>
+
+  <main id="viewExamEdit" class="view" hidden>
+    <div class="pad">
+      <label class="field">
+        <span>考试科目</span>
+        <input type="text" id="eSubject" placeholder="高等数学">
+      </label>
+      <label class="field">
+        <span>考试日期</span>
+        <input type="date" id="eDate">
+      </label>
+      <label class="field">
+        <span>考试时间</span>
+        <input type="time" id="eTime">
+      </label>
+      <label class="field">
+        <span>地点</span>
+        <input type="text" id="eLocation" placeholder="选填，如 逸夫楼 301">
+      </label>
+      <label class="field">
+        <span>备注</span>
+        <input type="text" id="eNote" placeholder="选填，如 闭卷 / 带计算器">
+      </label>
+      <button class="danger block" id="eDelete" hidden>删除这场考试</button>
+    </div>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" id="tabSchedule">📚 课程表</button>
+    <button class="tab" id="tabExam">📝 考试</button>
+  </nav>
 
   <div id="toast" class="toast" hidden></div>
 </div>

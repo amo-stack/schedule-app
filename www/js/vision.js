@@ -217,5 +217,74 @@ App.Vision = (function () {
     });
   }
 
-  return { PROVIDERS, recognize, compress, pickImage, testConnection };
+  const SYSTEM_PROMPT_EXAMS = `你是一个中文考试安排识别助手。请从图片中识别所有考试安排，输出严格的 JSON 数组，不要输出任何解释文字、不要 markdown 代码块。
+
+数组每个元素字段：
+- subject: 考试科目/名称（必填，去掉换行）
+- examDate: 考试日期，"YYYY-MM-DD" 格式
+- examTime: 考试时间，"HH:MM" 24小时制，没有则 null
+- location: 考试地点，没有则 null
+- note: 备注（如「闭卷」「带计算器」），没有则 null
+- confidence: 0-1 的置信度数字
+
+要求：
+1. 一门考试一条，不要合并。
+2. 日期必须规范成 YYYY-MM-DD，如 2026年12月25日 → "2026-12-25"。
+3. 无法确定就填 null，不要编造。`;
+
+  function normalizeExam(x) {
+    if (!x || typeof x !== 'object') return null;
+    const subject = String(x.subject || '').trim();
+    if (!subject) return null;
+    const date = String(x.examDate || '').match(/^\d{4}-\d{2}-\d{2}$/) ? x.examDate : null;
+    if (!date) return null;
+    return {
+      subject,
+      examDate: date,
+      examTime: x.examTime ? String(x.examTime) : null,
+      location: x.location ? String(x.location).trim() : null,
+      note: x.note ? String(x.note).trim() : null,
+      confidence: typeof x.confidence === 'number' ? x.confidence : undefined,
+    };
+  }
+
+  async function recognizeExams(base64, settings) {
+    const key = (settings.apiKey || '').trim();
+    if (!key) return { ok: false, error: '未配置 API Key' };
+
+    const p = PROVIDERS[settings.visionProvider] || PROVIDERS.glm;
+    const endpoint = (settings.apiBase || '').trim() || p.base;
+    const model = (settings.model || '').trim() || p.model;
+
+    const body = {
+      model,
+      temperature: 0.1,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT_EXAMS },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '请识别这张考试安排表，输出 JSON 数组。' },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          ],
+        },
+      ],
+    };
+
+    try {
+      const json = await post(endpoint, { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body);
+      const content = json && json.choices && json.choices[0] && json.choices[0].message
+        ? json.choices[0].message.content
+        : '';
+      const parsed = extractJson(Array.isArray(content) ? JSON.stringify(content) : content);
+      if (!Array.isArray(parsed)) return { ok: false, error: '模型未返回可解析的 JSON 数组' };
+      const items = parsed.map(normalizeExam).filter(Boolean);
+      if (!items.length) return { ok: false, error: '未识别到考试' };
+      return { ok: true, items };
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    }
+  }
+
+  return { PROVIDERS, recognize, recognizeExams, compress, pickImage, testConnection };
 })();
