@@ -1,5 +1,5 @@
 // 缓存全部静态资源，断网/重打开都可用
-const CACHE = 'schedule-app-v19';
+const CACHE = 'schedule-app-v20';
 const ASSETS = [
   './',
   './index.html',

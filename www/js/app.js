@@ -323,6 +323,7 @@ window.App = window.App || {};
       const md = `${date.getMonth() + 1}.${date.getDate()}`;
       const el = document.createElement('div');
       el.className = 'day-head' + (d === today ? ' today' : '');
+      el.style.gridColumn = String(d + 1); // 第1列是36px时间列，表头从第2列起，与课程区(d+1)对齐
       el.innerHTML = `${WEEK_LABELS[d - 1]}<span class="dnum">${md}</span>`;
       head.appendChild(el);
     }

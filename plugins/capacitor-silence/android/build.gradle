@@ -2,10 +2,10 @@ apply plugin: 'com.android.library'
 
 android {
     namespace "com.zez.silence"
-    compileSdkVersion 35
+    compileSdkVersion 36
     defaultConfig {
         minSdkVersion 23
-        targetSdkVersion 35
+        targetSdkVersion 36
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
