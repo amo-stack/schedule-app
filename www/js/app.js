@@ -1008,6 +1008,39 @@ window.App = window.App || {};
     renderResults();
   }
 
+  // 自动对齐：让最早有课的那天变为周一（仅作用于预览）
+  function autoAlignResults() {
+    if (!state.results || !state.results.length) return;
+    const dows = state.results.map((it) => it.dayOfWeek || 1);
+    const minDow = Math.min.apply(null, dows);
+    if (minDow === 1) { toast('预览已对齐到周一到周五'); return; }
+    const shift = minDow - 1;
+    state.results.forEach((it) => {
+      const d = (it.dayOfWeek || 1) - 1;
+      it.dayOfWeek = ((d - shift) % 7 + 7) % 7 + 1;
+    });
+    renderResults();
+    toast('预览已对齐到周一到周五');
+  }
+
+  // 已导入课程的自动对齐：最早上课日设为周一（写库）
+  function autoAlignToMonFri() {
+    const courses = Store.getCourses();
+    if (!courses.length) { toast('还没有课程'); return; }
+    const dows = courses.map((c) => c.dayOfWeek || 1);
+    const minDow = Math.min.apply(null, dows);
+    if (minDow === 1) { toast('已经对齐到周一到周五'); return; }
+    const shift = minDow - 1;
+    courses.forEach((c) => {
+      const d = (c.dayOfWeek || 1) - 1;
+      c.dayOfWeek = ((d - shift) % 7 + 7) % 7 + 1;
+    });
+    Store.setCourses(courses);
+    reload();
+    renderAll();
+    toast('已整体对齐：最早上课日设为周一');
+  }
+
   function importSelected() {
     const term = Store.getTerm();
     const settings = Store.getSettings();
@@ -1711,6 +1744,8 @@ window.App = window.App || {};
     };
     $('btnShiftResultsPrev').onclick = () => { shiftResults(-1); toast('预览已提前一天，确认后再导入'); };
     $('btnShiftResultsNext').onclick = () => { shiftResults(1); toast('预览已延后一天，确认后再导入'); };
+    $('btnAutoAlignResults').onclick = autoAlignResults;
+    $('btnAutoAlign').onclick = autoAlignToMonFri;
 
     $('fWeeks').oninput = updateWeeksPreview;
     $('btnDelete').onclick = () => {
