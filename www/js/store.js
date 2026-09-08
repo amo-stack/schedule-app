@@ -6,12 +6,12 @@ App.Store = (function () {
   const K_TERM = 'schedule.term';
   const K_EXAMS = 'schedule.exams';
 
-  // 大学课表按「大节」计，每大节 90 分钟（1.5 小时），含课间
+  // 大学课表按「大节」计，每大节 90 分钟（1.5 小时）；时间按用户学校实际作息
   const DEFAULT_SECTIONS = [
-    { index: 1, start: '08:00', end: '09:30' },
-    { index: 2, start: '09:40', end: '11:10' },
-    { index: 3, start: '14:00', end: '15:30' },
-    { index: 4, start: '15:40', end: '17:10' },
+    { index: 1, start: '08:30', end: '10:00' },
+    { index: 2, start: '10:20', end: '11:50' },
+    { index: 3, start: '14:30', end: '16:00' },
+    { index: 4, start: '16:20', end: '17:50' },
     { index: 5, start: '19:00', end: '20:30' },
   ];
 
