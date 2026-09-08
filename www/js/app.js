@@ -32,6 +32,8 @@ window.App = window.App || {};
     editing: null,
     results: [],
     selected: new Set(),
+    expanded: -1,
+    importMode: 'sheet',
     term: Store.getTerm(),
     settings: Store.getSettings(),
     courses: Store.getCourses(),
@@ -257,6 +259,7 @@ window.App = window.App || {};
 
       state.results = res.items;
       state.selected = new Set(res.items.map((_, i) => i));
+      state.expanded = -1;
       status.hidden = true;
       resultBox.hidden = false;
       $('resultHint').textContent = `识别到 ${res.items.length} 条，取消勾选不需要的：`;
@@ -264,6 +267,109 @@ window.App = window.App || {};
     } catch (e) {
       status.innerHTML = `<span style="color:#C0392B">出错了：${e && e.message ? e.message : e}</span>`;
     }
+  }
+
+  /* ---------- 导入：模式切换 ---------- */
+
+  function switchImportMode(m) {
+    state.importMode = m;
+    renderChips(
+      $('impMode'),
+      [
+        { label: '表格文件（推荐）', value: 'sheet' },
+        { label: '图片识别', value: 'image' },
+      ],
+      m,
+      (v) => switchImportMode(v)
+    );
+    $('impSheetBox').hidden = m !== 'sheet';
+    $('impImageBox').hidden = m !== 'image';
+  }
+
+  /* ---------- 导入：表格文件（xls/xlsx/csv/粘贴） ---------- */
+
+  function splitDelimited(text) {
+    const sep = text.indexOf('\t') >= 0 ? '\t' : ',';
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.split(sep).map((v) => String(v).replace(/^"|"$/g, '').trim()));
+  }
+
+  function pickSheetFile() {
+    const status = $('recognizeStatus');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xls,.xlsx,.csv,.txt';
+    input.onchange = function () {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      status.hidden = false;
+      status.textContent = '正在读取文件…';
+      const reader = new FileReader();
+      reader.onload = function () {
+        try {
+          const name = String(file.name || '').toLowerCase();
+          let cells;
+          if (/\.(csv|txt)$/.test(name)) {
+            cells = splitDelimited(new TextDecoder('utf-8').decode(reader.result));
+          } else {
+            if (!window.XLSX) throw new Error('表格解析库未加载，请改粘贴方式或另存为 CSV');
+            const wb = window.XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+            cells = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+              header: 1,
+              defval: '',
+              blankrows: false,
+            });
+          }
+          applyParsed(cells);
+        } catch (e) {
+          status.innerHTML = `<span style="color:#C0392B">读取失败：${(e && e.message) || e}</span>`;
+        }
+      };
+      reader.onerror = () => {
+        status.textContent = '文件读取失败';
+      };
+      reader.readAsArrayBuffer(file);
+    };
+    input.click();
+  }
+
+  function parsePasted() {
+    const text = String($('pasteArea').value || '').trim();
+    if (!text) return toast('先把课表内容粘贴进去');
+    applyParsed(splitDelimited(text));
+  }
+
+  function applyParsed(cells) {
+    const status = $('recognizeStatus');
+    const r = App.XlsParse.parseCells(cells);
+    if (!r.ok) {
+      status.hidden = false;
+      status.innerHTML = `<span style="color:#C0392B">${r.error}</span>`;
+      $('resultBox').hidden = true;
+      return;
+    }
+
+    let termMsg = '';
+    if (r.term && r.term.startDate) {
+      const t = Store.getTerm();
+      if (t.startDate !== r.term.startDate || t.totalWeeks !== r.term.totalWeeks) {
+        t.startDate = r.term.startDate;
+        t.totalWeeks = r.term.totalWeeks;
+        Store.setTerm(t);
+        state.term = Store.getTerm();
+        termMsg = `，学期已自动设为 ${r.term.startDate} 起、共 ${r.term.totalWeeks} 周`;
+      }
+    }
+
+    state.results = r.items;
+    state.selected = new Set(r.items.map((_, i) => i));
+    state.expanded = -1;
+    status.hidden = true;
+    $('resultBox').hidden = false;
+    $('resultHint').textContent = `解析到 ${r.items.length} 门课${termMsg}。点条目可修改，点左侧方框取消导入：`;
+    renderResults();
+    if (r.warnings && r.warnings.length) toast(r.warnings[0]);
   }
 
   function renderResults() {
@@ -275,25 +381,135 @@ window.App = window.App || {};
       const on = state.selected.has(i);
       const div = document.createElement('div');
       div.className = 'result-item' + (on ? '' : ' off');
-      const parsed = Weeks.parseWeeksExpr(it.weeksExpr || '', term.totalWeeks);
-      div.innerHTML = `
-        <div class="mark">${on ? '[x]' : '[ ]'}</div>
-        <div>
-          <div class="n"></div>
-          <div class="m"></div>
-          <div class="m" style="color:#AAA"></div>
-        </div>`;
-      const texts = div.querySelectorAll('.n, .m');
-      texts[0].textContent = it.name;
-      texts[1].textContent = `周${WEEK_LABELS[(it.dayOfWeek || 1) - 1]}${it.startTime ? ' ' + it.startTime + '-' + it.endTime : ''}${it.startSection ? ' 第' + it.startSection + '节' : ''}`;
-      texts[2].textContent = [it.location, it.teacher, '周次：' + Weeks.describeWeeks(parsed.weeks, term.totalWeeks)].filter(Boolean).join(' · ');
-      div.onclick = () => {
-        if (state.selected.has(i)) state.selected.delete(i);
+
+      const mark = document.createElement('div');
+      mark.className = 'mark';
+      mark.textContent = on ? '[x]' : '[ ]';
+      mark.onclick = (e) => {
+        e.stopPropagation();
+        if (on) state.selected.delete(i);
         else state.selected.add(i);
         renderResults();
       };
+
+      const body = document.createElement('div');
+      body.className = 'ri-body';
+      const n = document.createElement('div');
+      n.className = 'n';
+      n.textContent = it.name;
+
+      const m1 = document.createElement('div');
+      m1.className = 'm';
+      const secTxt = it.startSection
+        ? ` 第${it.startSection}${it.endSection && it.endSection !== it.startSection ? '-' + it.endSection : ''}节`
+        : '';
+      const timeTxt = it.startTime ? ` ${it.startTime}-${it.endTime}` : '';
+      m1.textContent = `周${WEEK_LABELS[(it.dayOfWeek || 1) - 1]}${secTxt}${timeTxt}`;
+
+      const m2 = document.createElement('div');
+      m2.className = 'm sub';
+      const parsed = Weeks.parseWeeksExpr(it.weeksExpr || '', term.totalWeeks);
+      m2.textContent = [it.location, it.teacher, Weeks.describeWeeks(parsed.weeks, term.totalWeeks)]
+        .filter(Boolean)
+        .join(' · ');
+
+      body.appendChild(n);
+      body.appendChild(m1);
+      body.appendChild(m2);
+      body.onclick = () => {
+        state.expanded = state.expanded === i ? -1 : i;
+        renderResults();
+      };
+
+      div.appendChild(mark);
+      div.appendChild(body);
+      if (state.expanded === i) div.appendChild(buildResultEditor(i));
       box.appendChild(div);
     });
+  }
+
+  function riLabel(t) {
+    const el = document.createElement('span');
+    el.className = 'ri-label';
+    el.textContent = t;
+    return el;
+  }
+
+  function riTextRow(title, value, onChange) {
+    const row = document.createElement('div');
+    row.className = 'ri-row';
+    row.appendChild(riLabel(title));
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = value || '';
+    inp.oninput = () => onChange(inp.value);
+    row.appendChild(inp);
+    return row;
+  }
+
+  function buildResultEditor(i) {
+    const it = state.results[i];
+    const wrap = document.createElement('div');
+    wrap.className = 'ri-edit';
+    wrap.onclick = (e) => e.stopPropagation();
+
+    const dayRow = document.createElement('div');
+    dayRow.className = 'ri-row';
+    dayRow.appendChild(riLabel('星期'));
+    const dayChips = document.createElement('div');
+    dayChips.className = 'chips';
+    renderChips(
+      dayChips,
+      WEEK_LABELS.map((d, k) => ({ label: d, value: k + 1 })),
+      it.dayOfWeek,
+      (v) => {
+        it.dayOfWeek = v;
+        renderResults();
+      }
+    );
+    dayRow.appendChild(dayChips);
+
+    const wkRow = document.createElement('div');
+    wkRow.className = 'ri-row';
+    wkRow.appendChild(riLabel('周次'));
+    const wkBox = document.createElement('div');
+    wkBox.className = 'ri-field';
+    const wkInp = document.createElement('input');
+    wkInp.type = 'text';
+    wkInp.value = it.weeksExpr || '';
+    wkInp.placeholder = '留空＝全学期，如 1-16周(双)';
+    const wkHint = document.createElement('div');
+    wkHint.className = 'ri-hint';
+    const refresh = () => {
+      const p = Weeks.parseWeeksExpr(wkInp.value, Store.getTerm().totalWeeks);
+      wkHint.textContent = '→ ' + Weeks.describeWeeks(p.weeks, Store.getTerm().totalWeeks);
+    };
+    wkInp.oninput = () => {
+      it.weeksExpr = wkInp.value;
+      refresh();
+    };
+    refresh();
+    wkBox.appendChild(wkInp);
+    wkBox.appendChild(wkHint);
+    wkRow.appendChild(wkBox);
+
+    const del = document.createElement('button');
+    del.className = 'ghost sm';
+    del.textContent = '删除这条';
+    del.onclick = () => {
+      state.results.splice(i, 1);
+      state.selected = new Set(state.results.map((_, k) => k));
+      state.expanded = -1;
+      renderResults();
+    };
+
+    wrap.appendChild(dayRow);
+    wrap.appendChild(riTextRow('课程名', it.name, (v) => { it.name = v; }));
+    wrap.appendChild(riTextRow('地点', it.location, (v) => { it.location = v; }));
+    wrap.appendChild(riTextRow('教师', it.teacher, (v) => { it.teacher = v; }));
+    wrap.appendChild(wkRow);
+    wrap.appendChild(del);
+    return wrap;
   }
 
   function guessSection(hhmm, sections, useEnd) {
@@ -606,6 +822,16 @@ window.App = window.App || {};
     $('btnCamera').onclick = () => runRecognize('camera');
     $('btnAlbum').onclick = () => runRecognize('album');
     $('btnImportSelected').onclick = importSelected;
+    $('btnPickSheet').onclick = pickSheetFile;
+    $('btnParsePaste').onclick = parsePasted;
+    $('btnSelAll').onclick = () => {
+      state.selected = new Set(state.results.map((_, i) => i));
+      renderResults();
+    };
+    $('btnSelNone').onclick = () => {
+      state.selected = new Set();
+      renderResults();
+    };
 
     $('fWeeks').oninput = updateWeeksPreview;
     $('btnDelete').onclick = () => {
@@ -629,6 +855,7 @@ window.App = window.App || {};
     reload();
     refreshWeek();
     bind();
+    switchImportMode('sheet');
     showPage('home');
     // 申请通知权限（原生走系统对话框；网页走浏览器原生通知）
     Scheduler.ensureChannel();

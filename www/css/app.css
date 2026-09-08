@@ -498,6 +498,71 @@ html, body {
 .result-item.off .mark { color: var(--text-3); }
 .result-item .n { font-size: 15px; font-weight: 500; }
 .result-item .m { font-size: 12px; color: var(--text-2); margin-top: 3px; }
+.result-item .m.sub { color: var(--text-3); }
+.ri-body { flex: 1; min-width: 0; }
+
+.result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sel-btns { display: flex; gap: 8px; flex-shrink: 0; }
+button.sm { padding: 6px 12px; font-size: 12px; }
+
+.ri-edit {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  width: 100%;
+}
+.ri-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ri-row > .chips { flex-wrap: wrap; }
+.ri-label {
+  font-size: 12px;
+  color: var(--text-2);
+  width: 48px;
+  flex-shrink: 0;
+}
+.ri-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font-size: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.ri-field { flex: 1; min-width: 0; }
+.ri-field input[type="text"] { width: 100%; }
+.ri-hint {
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 4px;
+}
+.result-item.expanded { flex-wrap: wrap; }
+.ri-edit .ghost.sm { width: 100%; color: var(--danger); }
+
+.paste-box { margin-top: 14px; }
+.paste-box textarea {
+  width: 100%;
+  padding: 10px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+  margin-bottom: 8px;
+}
+
 .tips { margin-top: 22px; font-size: 13px; color: var(--text-2); }
 
 /* ---------- toast ---------- */

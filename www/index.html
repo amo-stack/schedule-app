@@ -64,19 +64,40 @@
 
   <main id="viewImport" class="view" hidden>
     <div class="pad">
-      <div class="row-2">
-        <button class="outline" id="btnCamera">拍照识别</button>
-        <button class="outline" id="btnAlbum">从相册导入</button>
+      <div class="chips" id="impMode"></div>
+
+      <div id="impSheetBox">
+        <button class="primary block" id="btnPickSheet">选择 Excel / CSV 文件</button>
+        <p class="sub">支持教务系统导出的 .xls / .xlsx / .csv。按表格直接解析，<b>不要 API Key、零误差</b>。</p>
+        <div class="paste-box">
+          <textarea id="pasteArea" rows="3" placeholder="也可以把 Excel 里的课表整块复制，粘贴到这里"></textarea>
+          <button class="outline block" id="btnParsePaste">解析粘贴内容</button>
+        </div>
       </div>
+
+      <div id="impImageBox" hidden>
+        <div class="row-2">
+          <button class="outline" id="btnCamera">拍照识别</button>
+          <button class="outline" id="btnAlbum">从相册导入</button>
+        </div>
+        <p class="sub">适合只有课表截图的情况；需要配置 API Key。</p>
+      </div>
+
       <div id="recognizeStatus" class="status" hidden></div>
       <div id="resultBox" hidden>
-        <p class="hint" id="resultHint"></p>
+        <div class="result-head">
+          <p class="hint" id="resultHint"></p>
+          <div class="sel-btns">
+            <button class="ghost sm" id="btnSelAll">全选</button>
+            <button class="ghost sm" id="btnSelNone">全不选</button>
+          </div>
+        </div>
         <div id="resultList" class="result-list"></div>
         <button class="primary block" id="btnImportSelected">导入选中的课程</button>
       </div>
       <div class="tips">
         <p>识别引擎：<b id="engineName">未配置</b></p>
-        <p class="sub">未配置 API Key 时识别不可用，可手动添加课程；配置后准确率显著提升。</p>
+        <p class="sub">图片识别需配置 API Key；表格文件解析不需要。</p>
       </div>
     </div>
   </main>
@@ -208,6 +229,8 @@
 <script src="js/store.js"></script>
 <script src="js/scheduler.js"></script>
 <script src="js/vision.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="js/xlsParse.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

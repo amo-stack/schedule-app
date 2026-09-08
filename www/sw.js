@@ -1,5 +1,5 @@
 // 缓存全部静态资源，断网/重打开都可用
-const CACHE = 'schedule-app-v5';
+const CACHE = 'schedule-app-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,8 @@ const ASSETS = [
   './js/weeks.js',
   './js/scheduler.js',
   './js/vision.js',
+  './js/xlsParse.js',
+  './vendor/xlsx.full.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];

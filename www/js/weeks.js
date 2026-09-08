@@ -72,6 +72,8 @@ App.Weeks = (function () {
     if (isFull(weeks, total)) return '全周';
 
     const sorted = [...weeks].sort((a, b) => a - b);
+    if (sorted.length === 1) return `${sorted[0]}周`;
+
     const odd = sorted.every((w) => w % 2 === 1);
     const even = sorted.every((w) => w % 2 === 0);
     if (odd || even) {
