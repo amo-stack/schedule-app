@@ -1047,6 +1047,12 @@ window.App = window.App || {};
     const chosen = state.results.filter((_, i) => state.selected.has(i));
     if (!chosen.length) return toast('请至少选择一门课');
 
+    // 导入前清空旧课，避免脏数据叠加/错位（默认勾选，导入结果页可取消）
+    const clearChk = $('chkClearBefore');
+    if (clearChk && clearChk.checked) {
+      Store.clearCourses();
+    }
+
     chosen.forEach((it) => {
       const p = Weeks.parseWeeksExpr(it.weeksExpr || '', term.totalWeeks);
       const startSection = it.startSection || guessSection(it.startTime, settings.sectionTimes);

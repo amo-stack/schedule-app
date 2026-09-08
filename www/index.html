@@ -95,19 +95,20 @@
       <div id="resultBox" hidden>
         <div class="result-head">
           <p class="hint" id="resultHint"></p>
+          <p class="sub" style="color:#c0392b;margin:2px 0">之前导入过课表？请保持下方"导入前清空"勾选，否则旧课会重复/错位叠加。</p>
           <div class="sel-btns">
             <button class="ghost sm" id="btnSelAll">全选</button>
             <button class="ghost sm" id="btnSelNone">全不选</button>
           </div>
           <div class="shift-btns" style="margin-top:8px">
-            <button class="outline sm" id="btnShiftResultsPrev">预览·提前一天</button>
-            <button class="outline sm" id="btnShiftResultsNext">预览·延后一天</button>
+            <button class="outline sm" id="btnShiftResultsPrev">预览：整体提前一天</button>
+            <button class="outline sm" id="btnShiftResultsNext">预览：整体延后一天</button>
             <button class="outline sm" id="btnAutoAlignResults">自动对齐到周一</button>
           </div>
-          <div class="shift-btns" style="margin-top:10px;display:flex;gap:8px;">
-            <button class="outline sm" id="btnShiftResultsPrev" style="flex:1">预览：整体提前一天</button>
-            <button class="outline sm" id="btnShiftResultsNext" style="flex:1">预览：整体延后一天</button>
-          </div>
+          <label class="chk" style="margin-top:10px;display:flex;gap:6px;align-items:center;font-size:13px">
+            <input type="checkbox" id="chkClearBefore" checked />
+            <span>导入前清空全部现有课程（推荐，避免旧数据重复/错位）</span>
+          </label>
         </div>
         <div id="resultList" class="result-list"></div>
         <button class="primary block" id="btnImportSelected">导入选中的课程</button>
