@@ -484,6 +484,11 @@ window.App = window.App || {};
     $('sApiBase').value = s.apiBase;
     $('sModel').value = s.model;
     $('keyBox').hidden = s.visionProvider === 'off';
+    const tr = $('testResult');
+    if (tr) {
+      tr.hidden = true;
+      tr.textContent = '';
+    }
 
     renderChips($('sProvider'), [{ label: '关闭', value: 'off' }, { label: '智谱', value: 'glm' }, { label: '阿里百炼', value: 'qwen' }, { label: '自定义', value: 'openai' }], s.visionProvider, (v) => {
       s.visionProvider = v;
@@ -519,6 +524,48 @@ window.App = window.App || {};
     if (!r.native) toast(`已计算 ${r.count} 条提醒（App 内生效）`);
     else toast(`提醒已重排，共 ${r.count} 条`);
     renderSettings();
+  }
+
+  /* ---------- 识别设置：测试连接 ---------- */
+
+  async function testVisionKey() {
+    const s = Store.getSettings();
+    const box = $('testResult');
+    const cfg = {
+      visionProvider: s.visionProvider,
+      apiKey: ($('sApiKey').value || '').trim(),
+      apiBase: ($('sApiBase').value || '').trim(),
+      model: ($('sModel').value || '').trim(),
+    };
+
+    box.hidden = false;
+    if (s.visionProvider === 'off') {
+      box.style.color = 'var(--danger)';
+      box.textContent = '请先选择服务商（推荐「智谱」）';
+      return;
+    }
+    if (!cfg.apiKey) {
+      box.style.color = 'var(--danger)';
+      box.textContent = '请先粘贴 API Key';
+      return;
+    }
+
+    box.style.color = 'var(--text-2)';
+    box.textContent = '正在测试连接…';
+    const r = await Vision.testConnection(cfg);
+
+    if (r.ok) {
+      box.style.color = 'var(--success)';
+      box.textContent = `连接成功 · ${r.provider} · ${r.model} · ${r.ms}ms${r.reply ? ' · 模型回复「' + r.reply + '」' : ''}`;
+      s.apiKey = cfg.apiKey;
+      s.apiBase = cfg.apiBase;
+      s.model = cfg.model;
+      Store.setSettings(s);
+      toast('连接成功，Key 已自动保存');
+    } else {
+      box.style.color = 'var(--danger)';
+      box.textContent = '连接失败：' + r.error;
+    }
   }
 
   /* ---------- 通用 ---------- */
@@ -563,6 +610,7 @@ window.App = window.App || {};
 
     $('btnReschedule').onclick = saveSettingsAndReschedule;
     $('btnSaveRecog').onclick = saveSettingsAndReschedule;
+    $('btnTestKey').onclick = testVisionKey;
     $('btnClear').onclick = () => {
       if (!confirm('确定清空所有课程与提醒？')) return;
       Store.clearCourses();

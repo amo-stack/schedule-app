@@ -185,8 +185,11 @@
             <span>模型名（选填）</span>
             <input type="text" id="sModel" placeholder="glm-4v-flash">
           </label>
+          <p class="sub">没有 Key？去 <a href="https://open.bigmodel.cn" target="_blank" rel="noopener">open.bigmodel.cn</a> 手机号注册 → 控制台「API Keys」复制即可，GLM-4V-Flash 永久免费。</p>
         </div>
         <button class="primary block" id="btnSaveRecog">保存识别设置</button>
+        <button class="ghost block" id="btnTestKey">测试连接</button>
+        <p class="sub" id="testResult" hidden></p>
       </section>
 
       <section class="card">

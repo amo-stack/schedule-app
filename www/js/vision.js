@@ -26,13 +26,19 @@ App.Vision = (function () {
 2. 跨节次的课只输出一条，startSection/endSection 标明跨度。
 3. 无法确定就填 null，不要编造。`;
 
+  function requestError(message, status) {
+    const e = new Error(message);
+    e.status = status;
+    return e;
+  }
+
   async function post(url, headers, body) {
     const cap = window.Capacitor;
     const http = cap && cap.Plugins && cap.Plugins.CapacitorHttp;
     if (http) {
       const res = await http.post({ url, headers, data: body });
       if (res.status < 200 || res.status >= 300) {
-        throw new Error(`接口返回 ${res.status}: ${JSON.stringify(res.data).slice(0, 160)}`);
+        throw requestError(`接口返回 ${res.status}: ${JSON.stringify(res.data).slice(0, 160)}`, res.status);
       }
       return typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
     }
@@ -41,8 +47,17 @@ App.Vision = (function () {
       headers,
       body: JSON.stringify(body),
     });
-    if (!r.ok) throw new Error(`接口返回 ${r.status}: ${(await r.text()).slice(0, 160)}`);
+    if (!r.ok) throw requestError(`接口返回 ${r.status}: ${(await r.text()).slice(0, 160)}`, r.status);
     return r.json();
+  }
+
+  /** 把 HTTP 状态码翻译成人话 */
+  function explain(status) {
+    if (status === 401 || status === 403) return 'API Key 无效或没权限，请检查是否复制完整';
+    if (status === 404) return '接口地址或模型名不存在，请检查「接口地址」和「模型名」';
+    if (status === 429) return '请求太频繁或额度用完了，稍后再试';
+    if (status >= 500) return '服务商服务器故障，稍后再试';
+    return '';
   }
 
   function extractJson(text) {
@@ -81,6 +96,31 @@ App.Vision = (function () {
       weeksExpr: x.weeksExpr ? String(x.weeksExpr) : undefined,
       confidence: typeof x.confidence === 'number' ? x.confidence : undefined,
     };
+  }
+
+  /** 测试连接：发一条极短请求，验证 Key / 地址 / 模型名是否可用 */
+  async function testConnection(settings) {
+    const key = (settings.apiKey || '').trim();
+    if (!key) return { ok: false, error: '请先填写 API Key' };
+
+    const p = PROVIDERS[settings.visionProvider] || PROVIDERS.glm;
+    const endpoint = (settings.apiBase || '').trim() || p.base;
+    const model = (settings.model || '').trim() || p.model;
+
+    const t0 = Date.now();
+    try {
+      const json = await post(
+        endpoint,
+        { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        { model, temperature: 0, max_tokens: 16, messages: [{ role: 'user', content: '回复两个字：正常' }] }
+      );
+      const msg = json && json.choices && json.choices[0] && json.choices[0].message;
+      const reply = msg ? String(msg.content || '').trim() : '';
+      return { ok: true, provider: p.name, model, ms: Date.now() - t0, reply: reply.slice(0, 40) };
+    } catch (e) {
+      const hint = explain(e && e.status);
+      return { ok: false, error: hint || ((e && e.message) || String(e)) };
+    }
   }
 
   async function recognize(base64, settings) {
@@ -175,5 +215,5 @@ App.Vision = (function () {
     });
   }
 
-  return { PROVIDERS, recognize, compress, pickImage };
+  return { PROVIDERS, recognize, compress, pickImage, testConnection };
 })();
