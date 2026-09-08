@@ -4,10 +4,8 @@
   "description": "上课自动整手机静音（系统勿扰 DND），并确保上课提醒仍可响",
   "main": "dist/index.js",
   "capacitor": {
-    "platforms": {
-      "android": {
-        "src": "android"
-      }
+    "android": {
+      "src": "android"
     }
   }
 }

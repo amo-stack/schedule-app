@@ -4,10 +4,8 @@
   "description": "Save exported timetable image to Android gallery via MediaStore",
   "main": "dist/index.js",
   "capacitor": {
-    "platforms": {
-      "android": {
-        "src": "android"
-      }
+    "android": {
+      "src": "android"
     }
   }
 }

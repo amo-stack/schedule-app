@@ -42,7 +42,7 @@ window.App = window.App || {};
   };
 
   // 数据 schema 版本：数据结构/解析规则有重大变更时递增，用于提示用户重新导入
-  const APP_SCHEMA_VERSION = 18;
+  const APP_SCHEMA_VERSION = 19;
 
   const $ = (id) => document.getElementById(id);
 
