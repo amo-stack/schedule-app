@@ -41,6 +41,9 @@ window.App = window.App || {};
     courses: Store.getCourses(),
   };
 
+  // 数据 schema 版本：数据结构/解析规则有重大变更时递增，用于提示用户重新导入
+  const APP_SCHEMA_VERSION = 18;
+
   const $ = (id) => document.getElementById(id);
 
   function toast(msg) {
@@ -182,9 +185,11 @@ window.App = window.App || {};
 
     if (empty) {
       $('conflictBar').hidden = true;
+      $('versionBanner').hidden = true;
       return;
     }
 
+    renderVersionBanner();
     renderConflictBar();
     renderExamWidget();
 
@@ -246,6 +251,37 @@ window.App = window.App || {};
     bar.appendChild(txt);
     bar.appendChild(more);
     bar.onclick = () => showPage('settings');
+  }
+
+  function renderVersionBanner() {
+    const box = $('versionBanner');
+    if (!box) return;
+    const stored = localStorage.getItem('schedule.schemaVersion');
+    const courses = Store.getCourses();
+    if (stored === String(APP_SCHEMA_VERSION) || !courses.length) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = '';
+    const txt = document.createElement('span');
+    txt.textContent = '检测到课表数据来自旧版本，日期可能错位。建议清空后重新导入 xls。';
+    const btn = document.createElement('button');
+    btn.textContent = '立即修复';
+    btn.className = 'primary sm';
+    btn.onclick = () => {
+      Store.clearCourses();
+      localStorage.removeItem('schedule.schemaVersion');
+      renderVersionBanner();
+      showPage('import');
+      toast('已清空旧课，请重新导入 xls');
+    };
+    box.appendChild(txt);
+    box.appendChild(btn);
+  }
+
+  function markSchemaCurrent() {
+    try { localStorage.setItem('schedule.schemaVersion', String(APP_SCHEMA_VERSION)); } catch (e) {}
   }
 
   function renderConflictList() {
@@ -1085,6 +1121,7 @@ window.App = window.App || {};
       Store.upsertCourse(course);
     });
 
+    markSchemaCurrent();
     afterDataChange(`已导入 ${chosen.length} 门课`, true);
   }
 
@@ -1428,24 +1465,45 @@ window.App = window.App || {};
       }
     });
 
-    c.toBlob((blob) => {
+    c.toBlob(async (blob) => {
       if (!blob) return toast('生成图片失败');
+      const fileName = `课程表-第${state.week}周.png`;
       try {
-        const file = new File([blob], `课程表-第${state.week}周.png`, { type: 'image/png' });
+        const file = new File([blob], fileName, { type: 'image/png' });
         const url = URL.createObjectURL(blob);
-        // 兜底：永远先触发下载（安卓 webview 可靠），share 失败也不影响保存
+
+        // Web 兜底：触发浏览器下载
         const a = document.createElement('a');
         a.href = url;
-        a.download = file.name;
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        // 若系统支持分享，再弹分享面板（不阻塞已下载）
+
+        // 原生环境：保存到系统相册（DCIM/ScheduleApp）
+        if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+          const Export = Capacitor.Plugins && Capacitor.Plugins.Export;
+          if (Export && Export.saveImageToGallery) {
+            const base64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result.split(',')[1]);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            await Export.saveImageToGallery({ base64, filename: fileName });
+            toast('已保存到相册（DCIM/ScheduleApp）');
+          } else {
+            toast('图片已生成，请从下载目录查看');
+          }
+        } else {
+          toast('图片已生成，请从下载目录查看');
+        }
+
+        // 若系统支持分享，再弹分享面板
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           navigator.share({ files: [file], title: '课程表' }).catch(() => {});
         }
         setTimeout(() => URL.revokeObjectURL(url), 3000);
-        toast('图片已生成，已保存到下载目录（可再点分享）');
       } catch (e) {
         toast('导出失败：' + (e && e.message ? e.message : e));
       }
@@ -1541,6 +1599,7 @@ window.App = window.App || {};
     ], s.theme, (v) => {
       s.theme = v;
       Store.setSettings(s);
+      state.settings = s; // 保证 applyTheme 读到最新值
       applyTheme();
     });
 
@@ -1808,6 +1867,7 @@ window.App = window.App || {};
     $('btnClear').onclick = () => {
       if (!confirm('确定清空所有课程与提醒？')) return;
       Store.clearCourses();
+      localStorage.removeItem('schedule.schemaVersion');
       afterDataChange('已清空', true);
     };
   }

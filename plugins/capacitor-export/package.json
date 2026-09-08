@@ -1,0 +1,13 @@
+{
+  "name": "capacitor-export",
+  "version": "1.0.0",
+  "description": "Save exported timetable image to Android gallery via MediaStore",
+  "main": "dist/index.js",
+  "capacitor": {
+    "platforms": {
+      "android": {
+        "src": "android"
+      }
+    }
+  }
+}

@@ -57,7 +57,7 @@ App.Store = (function () {
       sectionTimes: DEFAULT_SECTIONS,
       adjustments: { holidays: [], makeup: [] },
       remindBringBook: true,
-      endRemindMin: 5,
+      endRemindMin: 0,
       autoSilence: true,
     };
   }

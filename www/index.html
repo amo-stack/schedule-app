@@ -20,6 +20,7 @@
   </header>
 
   <main id="viewHome" class="view">
+    <div id="versionBanner" class="version-banner" hidden></div>
     <div id="conflictBar" class="conflict-bar" hidden></div>
     <div class="weekbar">
       <button class="arrow" id="prevWeek">&lsaquo;</button>
@@ -198,7 +199,7 @@
         <div class="field" style="margin-top:14px">
           <span>下课前提醒</span>
           <div class="chips" id="sEndRemind"></div>
-          <em class="preview">每节课结束前提醒一次，避免拖堂迟到下一节</em>
+          <em class="preview">默认关闭：只在大节上课前提醒，下课前不响</em>
         </div>
         <label class="toggle-row">
           <input type="checkbox" id="sBringBook">

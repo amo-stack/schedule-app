@@ -13,7 +13,8 @@
     "@capacitor/camera": "8.2.4",
     "@capacitor/core": "8.5.1",
     "@capacitor/local-notifications": "8.3.1",
-    "capacitor-silence": "file:./plugins/capacitor-silence"
+    "capacitor-silence": "file:./plugins/capacitor-silence",
+    "capacitor-export": "file:./plugins/capacitor-export"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.1"
