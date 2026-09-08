@@ -17,6 +17,8 @@ import android.provider.Settings;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
+
+import org.json.JSONObject;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
@@ -92,9 +94,10 @@ public class SilencePlugin extends Plugin {
         if (windows != null) {
             long now = System.currentTimeMillis();
             for (int i = 0; i < windows.length(); i++) {
-                JSObject w = windows.getJSObject(i);
-                long en = w.getLong("enableAt");
-                long dis = w.getLong("disableAt");
+                JSONObject w = windows.optJSONObject(i);
+                if (w == null) continue;
+                long en = w.optLong("enableAt", 0);
+                long dis = w.optLong("disableAt", 0);
                 if (dis <= now) continue;
                 if (en > now) {
                     am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, en, makePI(count, true));
