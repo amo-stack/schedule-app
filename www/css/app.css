@@ -80,6 +80,7 @@ html, body {
   align-items: center;
   gap: 10px;
   padding: calc(var(--safe-top) + 12px) 16px 12px;
+  background: var(--bg);
   background: color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -374,12 +375,14 @@ html, body {
   padding: 14px 22px;
   font-size: 15px;
   font-weight: 500;
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
   box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent);
   cursor: pointer;
   z-index: 20;
   transition: transform 0.12s, box-shadow 0.15s;
 }
-.fab:active { transform: scale(0.96); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent); }
+.fab:active { transform: scale(0.96); box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent); }
 @media (max-width: 560px) { .fab { right: 20px; } }
 
 /* ---------- 表单 ---------- */
