@@ -62,6 +62,7 @@ App.Store = (function () {
       adjustments: { holidays: [], makeup: [] },
       remindBringBook: true,
       endRemindMin: 5,
+      autoSilence: true,
     };
   }
 

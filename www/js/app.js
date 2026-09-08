@@ -1427,6 +1427,9 @@ window.App = window.App || {};
 
     $('sBringBook').checked = !!s.remindBringBook;
 
+    $('sAutoSilence').checked = !!s.autoSilence;
+    refreshSilenceStatus();
+
     $('sStart').value = t.startDate;
     $('sTotalWeeks').value = t.totalWeeks;
     $('sApiKey').value = s.apiKey;
@@ -1458,6 +1461,24 @@ window.App = window.App || {};
     }
 
     renderAdjustments();
+  }
+
+  async function refreshSilenceStatus() {
+    const el = $('silenceStatus');
+    if (!el) return;
+    const S = Scheduler.getSilence();
+    if (!S) {
+      el.textContent = '网页预览模式不可用，打包成 App 后生效';
+      return;
+    }
+    try {
+      const r = await S.canSilence();
+      el.textContent = r.granted
+        ? '已授权勿扰：上课前自动整手机静音，下课自动恢复，上课/下课前提醒仍会响'
+        : '需在系统设置里授权「勿扰 / 修改通知策略」后才会静音（开启时会自动跳转授权页）';
+    } catch (e) {
+      el.textContent = '';
+    }
   }
 
   async function saveSettingsAndReschedule() {
@@ -1626,6 +1647,23 @@ window.App = window.App || {};
       Store.setSettings(s);
     };
 
+    $('sAutoSilence').onchange = async () => {
+      const s = Store.getSettings();
+      s.autoSilence = $('sAutoSilence').checked;
+      Store.setSettings(s);
+      if (s.autoSilence) {
+        const S = Scheduler.getSilence();
+        if (S) {
+          try {
+            const r = await S.canSilence();
+            if (!r.granted) await S.requestPermission();
+          } catch (e) {}
+        }
+      }
+      await Scheduler.rescheduleAll();
+      await refreshSilenceStatus();
+    };
+
     $('btnShiftPrev').onclick = () => shiftDayOfWeek(-1);
     $('btnShiftNext').onclick = () => shiftDayOfWeek(1);
 
@@ -1650,5 +1688,7 @@ window.App = window.App || {};
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW register failed', e));
     }
+    // 预建「绕过勿扰」的提醒渠道，保证静音时上课提醒仍响
+    Scheduler.prepareSilenceChannel();
   });
 })();

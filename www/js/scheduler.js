@@ -177,12 +177,71 @@ App.Scheduler = (function () {
           await p.schedule({ notifications: list.slice(i, i + 50) });
         }
       }
+      // 上课自动整手机静音
+      await syncSilence(courses, term, settings);
       return { native: true, count: list.length };
     } catch (e) {
       console.warn('schedule failed', e);
       scheduleWebNotifications(list);
       return { native: true, count: 0, error: String(e) };
     }
+  }
+
+  /* ---------- 上课自动静音（原生 DND 插件） ---------- */
+
+  function getSilence() {
+    const cap = window.Capacitor;
+    if (!cap || !cap.isNativePlatform || !cap.isNativePlatform()) return null;
+    if (cap.Plugins && cap.Plugins.Silence) return cap.Plugins.Silence;
+    try { return cap.registerPlugin('Silence'); } catch (e) { return null; }
+  }
+
+  function buildSilenceWindows(courses, term, settings) {
+    const now = Date.now();
+    const horizon = now + 30 * 24 * 3600 * 1000; // 仅排未来 30 天，避免闹钟过多
+    const windows = [];
+    courses.forEach((c) => {
+      (c.weeks || []).forEach((week) => {
+        const day = App.Term.dateOfTermWeek(term.startDate, week, c.dayOfWeek);
+        const en = App.Term.combineDateTime(day, c.startTime).getTime() - 60000; // 课前 1 分钟开静音
+        const dis = App.Term.combineDateTime(day, c.endTime).getTime();
+        if (dis <= now) return;
+        if (en > horizon) return;
+        windows.push({ enableAt: en, disableAt: dis });
+      });
+    });
+    return windows;
+  }
+
+  async function syncSilence(courses, term, settings) {
+    const S = getSilence();
+    if (!S) return;
+    try {
+      if (settings.autoSilence) {
+        const g = await S.canSilence();
+        if (g && g.granted) {
+          await S.prepareChannel();
+          await S.scheduleWindows({ windows: buildSilenceWindows(courses, term, settings) });
+        }
+      } else {
+        await S.scheduleWindows({ windows: [] });
+        await S.disable();
+      }
+    } catch (e) {
+      console.warn('silence sync failed', e);
+    }
+  }
+
+  async function prepareSilenceChannel() {
+    const S = getSilence();
+    if (!S) return false;
+    try { await S.prepareChannel(); return true; } catch (e) { return false; }
+  }
+
+  async function requestSilencePermission() {
+    const S = getSilence();
+    if (!S) return false;
+    try { await S.requestPermission(); return true; } catch (e) { return false; }
   }
 
   async function pendingCount() {
@@ -196,5 +255,5 @@ App.Scheduler = (function () {
     }
   }
 
-  return { isNative, ensureChannel, rescheduleAll, pendingCount, buildNotifications };
+  return { isNative, ensureChannel, rescheduleAll, pendingCount, buildNotifications, getSilence, prepareSilenceChannel, requestSilencePermission };
 })();

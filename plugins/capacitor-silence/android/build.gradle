@@ -1,0 +1,19 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace "com.zez.silence"
+    compileSdkVersion 35
+    defaultConfig {
+        minSdkVersion 23
+        targetSdkVersion 35
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    implementation 'androidx.core:core:1.13.1'
+}

@@ -1,6 +1,7 @@
 node_modules/
-android/
+/android/
 www/dist/
+dist/
 .DS_Store
 *.log
 
