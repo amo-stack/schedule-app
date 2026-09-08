@@ -179,6 +179,7 @@ html, body {
 .day-head.today { background: var(--accent-soft); }
 
 .grid-body {
+  position: relative;
   display: grid;
   grid-template-columns: 36px repeat(7, 1fr);
   grid-auto-rows: 58px;
@@ -187,6 +188,39 @@ html, body {
   background: var(--line-soft);
   border-radius: var(--radius);
   margin: 0 8px 16px;
+}
+
+.now-line {
+  position: absolute;
+  left: 49px;
+  right: 10px;
+  height: 0;
+  border-top: 2px solid #EF4444;
+  pointer-events: none;
+  z-index: 5;
+}
+.now-line::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #EF4444;
+}
+.now-line::after {
+  content: attr(data-time);
+  position: absolute;
+  right: 0;
+  top: -15px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: #EF4444;
+  border-radius: 4px;
+  padding: 1px 5px;
+  line-height: 1.4;
 }
 .cell-time {
   font-size: 10px;
@@ -276,6 +310,20 @@ html, body {
 }
 :root[data-theme="dark"] .day-tabs button.active { background: var(--surface-2); box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
 
+.day-tabs button.is-today { position: relative; }
+.day-tabs button.is-today::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.day-tabs button.is-today.active::after { background: #fff; }
+
 .day-list { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .day-item {
   display: flex;
@@ -305,6 +353,186 @@ html, body {
 .day-item .t { font-size: 16px; font-weight: 600; }
 .day-item .m { font-size: 12px; color: var(--text-2); margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
 .day-item .m span { display: inline-flex; align-items: center; gap: 3px; }
+
+/* 日视图：今日概览卡片 */
+.today-card {
+  margin: 12px 16px 0;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.22);
+}
+.today-card.plain {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow);
+}
+.today-card .tc-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.today-card .tc-main { font-size: 19px; font-weight: 700; letter-spacing: 0.2px; }
+.today-card .tc-date { font-size: 12px; opacity: 0.85; }
+.today-card .tc-sub {
+  margin-top: 8px;
+  font-size: 13px;
+  opacity: 0.95;
+  line-height: 1.5;
+}
+.today-card .tc-next {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.today-card.plain .tc-next { border-top-color: var(--line-soft); }
+.today-card .tc-next .pill {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  flex: none;
+}
+.today-card.plain .tc-next .pill { background: var(--accent-soft); color: var(--accent); }
+.today-card.plain .tc-sub { color: var(--text-2); }
+.today-card .tc-back {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.9;
+  text-decoration: underline;
+  cursor: pointer;
+  display: inline-block;
+}
+
+/* 日视图：课程状态 */
+.day-item.done { opacity: 0.5; }
+.day-item.now {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow);
+}
+.day-item .badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+.day-item .badge.now { background: var(--success); color: #fff; }
+.day-item .badge.done { background: var(--bg-soft); color: var(--text-3); }
+
+/* ---------- 冲突提示 ---------- */
+.conflict-bar {
+  margin: 8px 16px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.conflict-bar .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex: none;
+}
+.conflict-bar .more { margin-left: auto; font-size: 12px; opacity: 0.75; }
+
+.conflict-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.conflict-item {
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.conflict-item .ci-head { font-weight: 500; margin-bottom: 4px; }
+.conflict-item .ci-body { font-size: 12px; color: var(--text-2); line-height: 1.6; }
+.conflict-none { font-size: 13px; color: var(--text-3); }
+.result-item.conflict { border-color: var(--danger); }
+.result-item .conflict-tag {
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 3px;
+}
+
+/* 放假 / 补课 */
+.cell-holiday {
+  background: repeating-linear-gradient(45deg, var(--line-soft), var(--line-soft) 6px, var(--bg-soft) 6px, var(--bg-soft) 12px);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.course-block.makeup { outline: 2px dashed rgba(255, 255, 255, 0.85); }
+.course-block.makeup::after {
+  content: '补';
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.92);
+  color: #b45309;
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 1.5;
+}
+.adj-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.adj-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.adj-item .adj-txt { flex: 1; min-width: 0; }
+.adj-item .adj-del {
+  border: none;
+  background: none;
+  color: var(--danger);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.adj-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.adj-input {
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+}
+.adj-input.sm { width: 86px; }
+.adj-add .outline.sm { flex: none; padding: 8px 14px; }
 
 /* ---------- 空状态 ---------- */
 .empty { text-align: center; padding: 64px 32px; color: var(--text-2); }

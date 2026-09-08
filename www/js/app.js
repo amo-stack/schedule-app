@@ -92,6 +92,14 @@ window.App = window.App || {};
 
   /* ---------- 首页 ---------- */
 
+  function adjSets() {
+    const a = (Store.getSettings().adjustments) || { holidays: [], makeup: [] };
+    const holidaySet = new Set(a.holidays || []);
+    const makeupMap = {};
+    (a.makeup || []).forEach((m) => { makeupMap[m.date] = m; });
+    return { holidaySet, makeupMap, raw: a };
+  }
+
   function renderHome() {
     reload();
     const courses = state.courses;
@@ -105,10 +113,63 @@ window.App = window.App || {};
     $('weekLabel').textContent = `第 ${state.week} 周` + (state.week === Term.currentWeekOf(state.term.startDate, state.term.totalWeeks) ? '（本周）' : '');
     $('weekDate').textContent = Term.toISODate(Term.dateOfTermWeek(state.term.startDate, state.week, 1)) + ' 起';
 
-    if (empty) return;
+    if (empty) {
+      $('conflictBar').hidden = true;
+      return;
+    }
+
+    renderConflictBar();
 
     if (state.viewMode === 'week') renderGrid();
     else renderDay();
+  }
+
+  function renderConflictBar() {
+    const bar = $('conflictBar');
+    const list = Conflicts.find(state.courses);
+    if (!list.length) { bar.hidden = true; return; }
+    bar.hidden = false;
+    bar.innerHTML = '';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    const txt = document.createElement('span');
+    txt.textContent = `检测到 ${list.length} 处课程时间冲突`;
+    const more = document.createElement('span');
+    more.className = 'more';
+    more.textContent = '查看 ›';
+    bar.appendChild(dot);
+    bar.appendChild(txt);
+    bar.appendChild(more);
+    bar.onclick = () => showPage('settings');
+  }
+
+  function renderConflictList() {
+    const box = $('conflictList');
+    const list = Conflicts.find(state.courses);
+    box.innerHTML = '';
+    if (!list.length) {
+      const p = document.createElement('p');
+      p.className = 'conflict-none';
+      p.textContent = state.courses.length ? '没有冲突' : '还没有课程';
+      box.appendChild(p);
+      return;
+    }
+    list.forEach((cf) => {
+      const a = state.courses[cf.i];
+      const b = state.courses[cf.j];
+      const el = document.createElement('div');
+      el.className = 'conflict-item';
+      const h = document.createElement('div');
+      h.className = 'ci-head';
+      h.textContent = `周${WEEK_LABELS[a.dayOfWeek - 1]} ${a.startTime}-${a.endTime}`;
+      const d = document.createElement('div');
+      d.className = 'ci-body';
+      d.textContent = `${a.name} ↔ ${b.name} · ${Conflicts.describeWeeks(cf.weeks)}`;
+      el.appendChild(h);
+      el.appendChild(d);
+      el.onclick = () => openCourse(a.id);
+      box.appendChild(el);
+    });
   }
 
   function renderGridHead() {
@@ -138,12 +199,32 @@ window.App = window.App || {};
     return ((new Date().getDay() + 6) % 7) + 1; // 1=周一 ... 7=周日
   }
 
+  /* ---------- 时间工具 ---------- */
+
+  function toMin(hhmm) {
+    const m = String(hhmm || '').match(/(\d{1,2}):(\d{2})/);
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : -1;
+  }
+
+  function nowMin() {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  }
+
+  function fmtLeft(mins) {
+    if (mins <= 0) return '马上';
+    if (mins < 60) return `${mins} 分钟`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m ? `${h} 小时 ${m} 分` : `${h} 小时`;
+  }
+
   function renderGrid() {
     renderGridHead();
     const sections = state.settings.sectionTimes;
-    const visible = state.courses.filter((c) => (c.weeks || []).indexOf(state.week) >= 0);
     const body = $('gridBody');
     const today = todayDow();
+    const adj = adjSets();
     body.innerHTML = '';
 
     sections.forEach((s, i) => {
@@ -155,11 +236,31 @@ window.App = window.App || {};
       body.appendChild(t);
 
       for (let d = 1; d <= 7; d++) {
-        const c = visible.find((x) => x.dayOfWeek === d && x.startSection === s.index);
+        const date = Term.dateOfTermWeek(state.term.startDate, state.week, d);
+        const dateStr = Term.toISODate(date);
+        if (adj.holidaySet.has(dateStr)) {
+          const ph = document.createElement('div');
+          ph.className = 'cell-holiday' + (d === today ? ' cell-col-today' : '');
+          ph.style.gridColumn = String(d + 1);
+          ph.style.gridRow = String(i + 1);
+          ph.textContent = '放假';
+          body.appendChild(ph);
+          continue;
+        }
+        let targetWeek = state.week, targetDow = d, isMakeup = false;
+        if (adj.makeupMap[dateStr]) {
+          const m = adj.makeupMap[dateStr];
+          targetWeek = m.week;
+          targetDow = m.dayOfWeek;
+          isMakeup = true;
+        }
+        const c = state.courses.find(
+          (x) => x.dayOfWeek === targetDow && x.startSection === s.index && (x.weeks || []).indexOf(targetWeek) >= 0
+        );
         if (c) {
           const span = Math.max(1, (c.endSection || c.startSection) - c.startSection + 1);
           const b = document.createElement('div');
-          b.className = 'course-block' + (span === 1 ? ' short' : '');
+          b.className = 'course-block' + (span === 1 ? ' short' : '') + (isMakeup ? ' makeup' : '');
           b.style.gridColumn = String(d + 1);
           b.style.gridRow = `${i + 1} / span ${span}`;
           b.style.setProperty('--cbg', c.color);
@@ -178,32 +279,67 @@ window.App = window.App || {};
         }
       }
     });
+
+    renderNowLine();
   }
 
   function renderDay() {
     const tabs = $('dayTabs');
+    const today = todayDow();
     tabs.innerHTML = '';
     WEEK_LABELS.forEach((l, i) => {
       const b = document.createElement('button');
       b.textContent = l;
-      if (state.day === i + 1) b.className = 'active';
+      b.className = (state.day === i + 1 ? 'active' : '') + (i + 1 === today ? ' is-today' : '');
       b.onclick = () => { state.day = i + 1; renderDay(); };
       tabs.appendChild(b);
     });
 
-    const list = state.courses
-      .filter((c) => c.dayOfWeek === state.day && (c.weeks || []).indexOf(state.week) >= 0)
-      .sort((a, b) => a.startSection - b.startSection);
+    const monday = Term.dateOfTermWeek(state.term.startDate, state.week, 1);
+    const date = Term.addDays(monday, state.day - 1);
+    const dateStr = Term.toISODate(date);
+    const adj = adjSets();
+    let targetWeek = state.week, targetDow = state.day, isMakeup = false, isHoliday = false;
+    if (adj.holidaySet.has(dateStr)) isHoliday = true;
+    else if (adj.makeupMap[dateStr]) {
+      const m = adj.makeupMap[dateStr];
+      targetWeek = m.week;
+      targetDow = m.dayOfWeek;
+      isMakeup = true;
+    }
 
     const wrap = $('dayList');
+    if (isHoliday) {
+      renderTodayCard([], false, false, true);
+      wrap.innerHTML = '<p style="text-align:center;color:var(--text-3);padding:40px 0">这天放假，没有课</p>';
+      return;
+    }
+
+    const list = state.courses
+      .filter((c) => c.dayOfWeek === targetDow && (c.weeks || []).indexOf(targetWeek) >= 0)
+      .sort((a, b) => a.startSection - b.startSection);
+
+    renderTodayCard(list, isMakeup);
+
+    const isToday = state.day === today && state.week === Term.currentWeekOf(state.term.startDate, state.term.totalWeeks);
+    const now = nowMin();
+
     wrap.innerHTML = '';
     if (!list.length) {
-      wrap.innerHTML = '<p style="text-align:center;color:#999;padding:40px 0">这天没有课</p>';
+      wrap.innerHTML = '<p style="text-align:center;color:var(--text-3);padding:40px 0">' + (isMakeup ? '补课日暂无对应课程' : '这天没有课') + '</p>';
       return;
     }
     list.forEach((c) => {
+      const s = toMin(c.startTime);
+      const e = toMin(c.endTime);
+      let phase = '';
+      if (isToday && s >= 0 && e > s) {
+        if (now >= e) phase = 'done';
+        else if (now >= s) phase = 'now';
+      }
+
       const item = document.createElement('div');
-      item.className = 'day-item';
+      item.className = 'day-item' + (phase ? ' ' + phase : '') + (isMakeup ? ' makeup' : '');
       const bar = document.createElement('div');
       bar.className = 'bar';
       bar.style.background = c.color;
@@ -212,6 +348,17 @@ window.App = window.App || {};
       const t = document.createElement('div');
       t.className = 't';
       t.textContent = c.name;
+      if (phase === 'now') {
+        const b = document.createElement('span');
+        b.className = 'badge now';
+        b.textContent = `正在上 · 还剩 ${fmtLeft(e - now)}`;
+        t.appendChild(b);
+      } else if (phase === 'done') {
+        const b = document.createElement('span');
+        b.className = 'badge done';
+        b.textContent = '已结束';
+        t.appendChild(b);
+      }
       const m = document.createElement('div');
       m.className = 'm';
       m.textContent = `${c.startTime}-${c.endTime} · 第${c.startSection}${c.endSection && c.endSection !== c.startSection ? '-' + c.endSection : ''}节 · ${[c.location, c.teacher].filter(Boolean).join(' · ') || '未填地点'}`;
@@ -222,6 +369,180 @@ window.App = window.App || {};
       item.onclick = () => openCourse(c.id);
       wrap.appendChild(item);
     });
+  }
+
+  /* 今日概览卡片 */
+
+  function renderTodayCard(list, isMakeup, _unused, isHoliday) {
+    const card = $('todayCard');
+    const today = todayDow();
+    const curWeek = Term.currentWeekOf(state.term.startDate, state.term.totalWeeks);
+    const isToday = state.day === today && state.week === curWeek;
+
+    card.innerHTML = '';
+    card.hidden = false;
+    card.className = 'today-card' + (isToday ? '' : ' plain');
+
+    if (isHoliday && isToday) {
+      const top = document.createElement('div');
+      top.className = 'tc-top';
+      const main = document.createElement('div');
+      main.className = 'tc-main';
+      main.textContent = '今天放假 🎉';
+      const date = document.createElement('div');
+      date.className = 'tc-date';
+      const d = new Date();
+      date.textContent = `${d.getMonth() + 1}月${d.getDate()}日 · 第${state.week}周`;
+      top.appendChild(main);
+      top.appendChild(date);
+      card.appendChild(top);
+      addSub(card, '好好休息');
+      return;
+    }
+
+    const top = document.createElement('div');
+    top.className = 'tc-top';
+    const main = document.createElement('div');
+    main.className = 'tc-main';
+    const date = document.createElement('div');
+    date.className = 'tc-date';
+
+    if (isToday) {
+      const d = new Date();
+      date.textContent = `${d.getMonth() + 1}月${d.getDate()}日 · 第${state.week}周${isMakeup ? ' · 补课日' : ''}`;
+
+      const now = nowMin();
+      const cur = list.find((c) => {
+        const s = toMin(c.startTime), e = toMin(c.endTime);
+        return s >= 0 && e > s && now >= s && now < e;
+      });
+      const next = list.find((c) => toMin(c.startTime) > now);
+      const remain = list.filter((c) => toMin(c.endTime) > now).length;
+
+      if (cur) {
+        main.textContent = `正在上：${cur.name}`;
+        addSub(card, `还剩 ${fmtLeft(toMin(cur.endTime) - now)}下课 · ${[cur.location, cur.teacher].filter(Boolean).join(' · ') || '未填地点'}`);
+        addNext(card, '下课之后', next ? `${next.startTime} ${next.name}` : '今天没有后续课程了');
+      } else if (next) {
+        main.textContent = `还剩 ${remain} 节课`;
+        addSub(card, `下课时间约 ${lastEnd(list)}`);
+        addNext(card, '下一节', `${next.startTime} ${next.name}${next.location ? ' · ' + next.location : ''}`, `还有 ${fmtLeft(toMin(next.startTime) - now)}`);
+      } else if (list.length) {
+        main.textContent = '今天的课上完啦';
+        addSub(card, `共 ${list.length} 节 · 结束于 ${lastEnd(list)}`);
+      } else {
+        main.textContent = '今天没课';
+        addSub(card, '好好休息 🎉');
+      }
+    } else {
+      const monday = Term.dateOfTermWeek(state.term.startDate, state.week, 1);
+      const d = Term.addDays(monday, state.day - 1);
+      date.textContent = `${d.getMonth() + 1}月${d.getDate()}日 · 第${state.week}周${isMakeup ? ' · 补课日' : ''}`;
+      main.textContent = list.length ? `周${WEEK_LABELS[state.day - 1]} · ${list.length} 节课` : `周${WEEK_LABELS[state.day - 1]} · 没课`;
+      if (list.length) {
+        const first = list[0];
+        addSub(card, `${first.startTime} - ${lastEnd(list)}`);
+      }
+      const back = document.createElement('div');
+      back.className = 'tc-back';
+      back.textContent = '回到今天';
+      back.onclick = () => {
+        state.week = curWeek > 0 ? curWeek : state.week;
+        state.day = today;
+        renderHome();
+      };
+      card.appendChild(back);
+    }
+
+    top.appendChild(main);
+    top.appendChild(date);
+    card.insertBefore(top, card.firstChild);
+  }
+
+  function addSub(card, text) {
+    const el = document.createElement('div');
+    el.className = 'tc-sub';
+    el.textContent = text;
+    card.appendChild(el);
+  }
+
+  function addNext(card, pill, text, tail) {
+    const el = document.createElement('div');
+    el.className = 'tc-next';
+    const p = document.createElement('span');
+    p.className = 'pill';
+    p.textContent = pill;
+    el.appendChild(p);
+    const s = document.createElement('span');
+    s.textContent = tail ? `${text} · ${tail}` : text;
+    el.appendChild(s);
+    card.appendChild(el);
+  }
+
+  function lastEnd(list) {
+    let max = -1;
+    list.forEach((c) => { const m = toMin(c.endTime); if (m > max) max = m; });
+    if (max < 0) return '--:--';
+    return `${String(Math.floor(max / 60)).padStart(2, '0')}:${String(max % 60).padStart(2, '0')}`;
+  }
+
+  function nowSectionPos(sections) {
+    const now = nowMin();
+    for (let i = 0; i < sections.length; i++) {
+      const s = toMin(sections[i].start);
+      const e = toMin(sections[i].end);
+      if (now < s) {
+        if (i === 0) return { row: 0, ratio: 0, offset: -3 };
+        const pe = toMin(sections[i - 1].end);
+        if (now >= pe) return { row: i, ratio: 0, offset: -3 };
+        return { row: i, ratio: 0, offset: -3 };
+      }
+      if (now < e) return { row: i, ratio: (now - s) / Math.max(1, e - s), offset: 0 };
+    }
+    return null;
+  }
+
+  function nowLineTop(sections) {
+    const p = nowSectionPos(sections);
+    if (!p) return null;
+    return p.row * 61 + p.ratio * 58 + p.offset;
+  }
+
+  function renderNowLine() {
+    const body = $('gridBody');
+    let line = $('nowLine');
+    if (state.week !== Term.currentWeekOf(state.term.startDate, state.term.totalWeeks)) {
+      if (line) line.hidden = true;
+      return;
+    }
+    const top = nowLineTop(state.settings.sectionTimes);
+    if (top == null) {
+      if (line) line.hidden = true;
+      return;
+    }
+    if (!line) {
+      line = document.createElement('div');
+      line.id = 'nowLine';
+      line.className = 'now-line';
+      body.appendChild(line);
+    }
+    line.hidden = false;
+    line.style.top = top + 'px';
+    const d = new Date();
+    line.dataset.time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  let _todayTimer = null;
+  function startTodayTimer() {
+    stopTodayTimer();
+    _todayTimer = setInterval(() => {
+      if (state.page !== 'home') return;
+      if (state.viewMode === 'day' && !$('dayWrap').hidden) renderDay();
+      else if (state.viewMode === 'week' && !$('gridWrap').hidden) renderNowLine();
+    }, 30000);
+  }
+  function stopTodayTimer() {
+    if (_todayTimer) { clearInterval(_todayTimer); _todayTimer = null; }
   }
 
   /* ---------- 导入 ---------- */
@@ -377,10 +698,22 @@ window.App = window.App || {};
     box.innerHTML = '';
     const term = Store.getTerm();
 
+    const asCourses = state.results.map((it) => ({
+      dayOfWeek: it.dayOfWeek,
+      startTime: it.startTime,
+      endTime: it.endTime,
+      weeks: Weeks.parseWeeksExpr(it.weeksExpr || '', term.totalWeeks).weeks,
+    }));
+    const cfMap = {};
+    Conflicts.find(asCourses).forEach((cf) => {
+      cfMap[cf.i] = state.results[cf.j].name;
+      cfMap[cf.j] = state.results[cf.i].name;
+    });
+
     state.results.forEach((it, i) => {
       const on = state.selected.has(i);
       const div = document.createElement('div');
-      div.className = 'result-item' + (on ? '' : ' off');
+      div.className = 'result-item' + (on ? '' : ' off') + (cfMap[i] ? ' conflict' : '');
 
       const mark = document.createElement('div');
       mark.className = 'mark';
@@ -416,6 +749,14 @@ window.App = window.App || {};
       body.appendChild(n);
       body.appendChild(m1);
       body.appendChild(m2);
+
+      if (cfMap[i]) {
+        const tag = document.createElement('div');
+        tag.className = 'conflict-tag';
+        tag.textContent = `时间冲突：与「${cfMap[i]}」重叠`;
+        body.appendChild(tag);
+      }
+
       body.onclick = () => {
         state.expanded = state.expanded === i ? -1 : i;
         renderResults();
@@ -681,6 +1022,70 @@ window.App = window.App || {};
 
   /* ---------- 设置 ---------- */
 
+  function renderAdjustments() {
+    const s = Store.getSettings();
+    const a = s.adjustments || { holidays: [], makeup: [] };
+
+    const hl = $('holidayList');
+    hl.innerHTML = '';
+    if (!a.holidays.length) {
+      hl.innerHTML = '<p class="sub">还没有设置放假日</p>';
+    } else {
+      a.holidays.forEach((dt) => {
+        const row = document.createElement('div');
+        row.className = 'adj-item';
+        const txt = document.createElement('span');
+        txt.className = 'adj-txt';
+        txt.textContent = dt + ' 放假';
+        const del = document.createElement('button');
+        del.className = 'adj-del';
+        del.textContent = '删除';
+        del.onclick = () => {
+          s.adjustments.holidays = (s.adjustments.holidays || []).filter((x) => x !== dt);
+          Store.setSettings(s);
+          renderAdjustments();
+          afterAdjust();
+        };
+        row.appendChild(txt);
+        row.appendChild(del);
+        hl.appendChild(row);
+      });
+    }
+
+    const ml = $('makeupList');
+    ml.innerHTML = '';
+    if (!a.makeup.length) {
+      ml.innerHTML = '<p class="sub">还没有补课安排</p>';
+    } else {
+      a.makeup.forEach((m) => {
+        const row = document.createElement('div');
+        row.className = 'adj-item';
+        const txt = document.createElement('span');
+        txt.className = 'adj-txt';
+        txt.textContent = `${m.date} 补 第${m.week}周周${WEEK_LABELS[m.dayOfWeek - 1]}的课`;
+        const del = document.createElement('button');
+        del.className = 'adj-del';
+        del.textContent = '删除';
+        del.onclick = () => {
+          s.adjustments.makeup = (s.adjustments.makeup || []).filter(
+            (x) => !(x.date === m.date && x.week === m.week && x.dayOfWeek === m.dayOfWeek)
+          );
+          Store.setSettings(s);
+          renderAdjustments();
+          afterAdjust();
+        };
+        row.appendChild(txt);
+        row.appendChild(del);
+        ml.appendChild(row);
+      });
+    }
+  }
+
+  function afterAdjust() {
+    reload();
+    if ($('viewHome').hidden === false) renderHome();
+  }
+
   function renderSettings() {
     const s = Store.getSettings();
     const t = Store.getTerm();
@@ -720,6 +1125,8 @@ window.App = window.App || {};
 
     $('courseCount').textContent = `共 ${Store.getCourses().length} 门课`;
 
+    renderConflictList();
+
     if (!Scheduler.isNative()) {
       $('pendingInfo').textContent = '当前为网页预览模式，提醒需打包成 App 后生效';
     } else {
@@ -727,6 +1134,8 @@ window.App = window.App || {};
         $('pendingInfo').textContent = `当前已排提醒：${n >= 0 ? n : '-'} 条`;
       });
     }
+
+    renderAdjustments();
   }
 
   async function saveSettingsAndReschedule() {
@@ -817,6 +1226,34 @@ window.App = window.App || {};
     });
 
     $('fabImport').onclick = () => showPage('import');
+
+    $('btnAddHoliday').onclick = () => {
+      const dt = $('newHoliday').value;
+      if (!dt) return toast('请选择放假日期');
+      const s = Store.getSettings();
+      s.adjustments = s.adjustments || { holidays: [], makeup: [] };
+      if ((s.adjustments.holidays || []).indexOf(dt) >= 0) return toast('该日期已添加');
+      s.adjustments.holidays.push(dt);
+      Store.setSettings(s);
+      renderAdjustments();
+      afterAdjust();
+      $('newHoliday').value = '';
+    };
+    $('btnAddMakeup').onclick = () => {
+      const dt = $('newMakeupDate').value;
+      const wk = parseInt($('newMakeupWeek').value, 10);
+      const dow = parseInt($('newMakeupDow').value, 10);
+      if (!dt) return toast('请选择补课日期');
+      if (!wk || wk < 1) return toast('请填写第几周');
+      const s = Store.getSettings();
+      s.adjustments = s.adjustments || { holidays: [], makeup: [] };
+      s.adjustments.makeup.push({ date: dt, week: wk, dayOfWeek: dow });
+      Store.setSettings(s);
+      renderAdjustments();
+      afterAdjust();
+      $('newMakeupDate').value = '';
+      $('newMakeupWeek').value = '';
+    };
     $('emptyImport').onclick = () => showPage('import');
     $('emptyAdd').onclick = () => openCourse('new');
     $('btnCamera').onclick = () => runRecognize('camera');
@@ -857,6 +1294,7 @@ window.App = window.App || {};
     bind();
     switchImportMode('sheet');
     showPage('home');
+    startTodayTimer();
     // 申请通知权限（原生走系统对话框；网页走浏览器原生通知）
     Scheduler.ensureChannel();
     // 注册 Service Worker，离线/重打开都可用

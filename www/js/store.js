@@ -58,6 +58,7 @@ App.Store = (function () {
       apiBase: '',
       model: '',
       sectionTimes: DEFAULT_SECTIONS,
+      adjustments: { holidays: [], makeup: [] },
     };
   }
 
