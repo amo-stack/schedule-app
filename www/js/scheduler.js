@@ -99,9 +99,11 @@ App.Scheduler = (function () {
    * 关键设计：不用「每周重复」触发器（无法表达单双周与起止周），
    * 而是把每门课按学期展开成具体日期，逐条注册一次性精确通知。
    */
-  function buildNotifications(courses, term, defaultRemindMin) {
+  function buildNotifications(courses, term, settings) {
     const now = Date.now();
     const list = [];
+    const defaultRemindMin = settings.defaultRemindMin;
+    const bringBook = settings.remindBringBook;
     courses.forEach((c, index) => {
       const before = c.remindBeforeMin >= 0 ? c.remindBeforeMin : defaultRemindMin;
       if (before <= 0) return;
@@ -110,10 +112,15 @@ App.Scheduler = (function () {
         const startAt = App.Term.combineDateTime(day, c.startTime);
         const fireAt = startAt.getTime() - before * 60000;
         if (fireAt <= now) return;
+        const base = [c.location, c.teacher, `${c.startTime}-${c.endTime}`].filter(Boolean).join(' · ');
+        let suffix = '';
+        if (c.book) suffix = `记得带《${c.book}》📚`;
+        else if (bringBook) suffix = '记得带书 📚';
+        const body = base ? `${base} · ${suffix}` : suffix;
         list.push({
           id: (index + 1) * 1000 + week,
           title: `${before} 分钟后上课 · ${c.name}`,
-          body: [c.location, c.teacher, `${c.startTime}-${c.endTime}`].filter(Boolean).join(' · '),
+          body,
           schedule: { at: new Date(fireAt), allowWhileIdle: true },
           channelId: CHANNEL_ID,
           sound: 'default',
@@ -130,7 +137,7 @@ App.Scheduler = (function () {
     const courses = App.Store.getCourses();
     const term = App.Store.getTerm();
     const settings = App.Store.getSettings();
-    const list = buildNotifications(courses, term, settings.defaultRemindMin);
+    const list = buildNotifications(courses, term, settings);
 
     if (!p) {
       scheduleWebNotifications(list);

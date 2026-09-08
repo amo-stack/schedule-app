@@ -179,7 +179,7 @@ window.App = window.App || {};
     const monday = Term.dateOfTermWeek(state.term.startDate, state.week, 1);
     for (let d = 1; d <= 7; d++) {
       const date = Term.addDays(monday, d - 1);
-      const md = date.getMonth() * 100 + date.getDate();
+      const md = `${date.getMonth() + 1}.${date.getDate()}`;
       const el = document.createElement('div');
       el.className = 'day-head' + (d === today ? ' today' : '');
       el.innerHTML = `${WEEK_LABELS[d - 1]}<span class="dnum">${md}</span>`;
@@ -891,6 +891,7 @@ window.App = window.App || {};
         id: Store.newId(),
         name: it.name,
         teacher: it.teacher,
+        book: it.book || '',
         location: it.location,
         dayOfWeek: Weeks.parseDayOfWeek(it.dayOfWeek),
         startTime: it.startTime || (s0 && s0.start) || '08:00',
@@ -924,6 +925,7 @@ window.App = window.App || {};
         weeks: [],
         weekPattern: 'all',
         weeksExpr: '',
+        book: '',
         color: Store.COLORS[0],
         remindBeforeMin: -1,
       };
@@ -972,6 +974,7 @@ window.App = window.App || {};
     const e = state.editing;
     $('fName').value = e.name || '';
     $('fTeacher').value = e.teacher || '';
+    $('fBook').value = e.book || '';
     $('fLocation').value = e.location || '';
     $('fStart').value = e.startTime;
     $('fEnd').value = e.endTime;
@@ -1013,11 +1016,24 @@ window.App = window.App || {};
     e.name = $('fName').value.trim();
     if (!e.name) return toast('请填写课程名称');
     e.teacher = $('fTeacher').value.trim();
+    e.book = $('fBook').value.trim();
     e.location = $('fLocation').value.trim();
     e.startTime = $('fStart').value;
     e.endTime = $('fEnd').value;
     Store.upsertCourse(e);
     afterDataChange('已保存', false);
+  }
+
+  /* ---------- 数据校准：整体移动一天 ---------- */
+
+  function shiftDayOfWeek(delta) {
+    const list = Store.getCourses();
+    list.forEach((c) => {
+      const d = (c.dayOfWeek || 1) - 1;
+      c.dayOfWeek = ((d + delta) % 7 + 7) % 7 + 1;
+    });
+    Store.setCourses(list);
+    afterDataChange('已移动课程', true);
   }
 
   /* ---------- 设置 ---------- */
@@ -1104,6 +1120,8 @@ window.App = window.App || {};
       s.defaultRemindMin = v;
       Store.setSettings(s);
     });
+
+    $('sBringBook').checked = !!s.remindBringBook;
 
     $('sStart').value = t.startDate;
     $('sTotalWeeks').value = t.totalWeeks;
@@ -1256,6 +1274,7 @@ window.App = window.App || {};
     };
     $('emptyImport').onclick = () => showPage('import');
     $('emptyAdd').onclick = () => openCourse('new');
+    $('fabAdd').onclick = () => openCourse('new');
     $('btnCamera').onclick = () => runRecognize('camera');
     $('btnAlbum').onclick = () => runRecognize('album');
     $('btnImportSelected').onclick = importSelected;
@@ -1280,6 +1299,16 @@ window.App = window.App || {};
     $('btnReschedule').onclick = saveSettingsAndReschedule;
     $('btnSaveRecog').onclick = saveSettingsAndReschedule;
     $('btnTestKey').onclick = testVisionKey;
+
+    $('sBringBook').onchange = () => {
+      const s = Store.getSettings();
+      s.remindBringBook = $('sBringBook').checked;
+      Store.setSettings(s);
+    };
+
+    $('btnShiftPrev').onclick = () => shiftDayOfWeek(-1);
+    $('btnShiftNext').onclick = () => shiftDayOfWeek(1);
+
     $('btnClear').onclick = () => {
       if (!confirm('确定清空所有课程与提醒？')) return;
       Store.clearCourses();

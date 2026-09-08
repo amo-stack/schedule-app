@@ -61,7 +61,10 @@
       <button class="ghost" id="emptyAdd">手动添加</button>
     </div>
 
-    <button class="fab" id="fabImport">导入课表</button>
+    <div class="fab-row">
+      <button class="fab" id="fabImport">导入课表</button>
+      <button class="fab ghost" id="fabAdd">添加课程</button>
+    </div>
   </main>
 
   <main id="viewImport" class="view" hidden>
@@ -82,7 +85,7 @@
           <button class="outline" id="btnCamera">拍照识别</button>
           <button class="outline" id="btnAlbum">从相册导入</button>
         </div>
-        <p class="sub">适合只有课表截图的情况；需要配置 API Key。</p>
+        <p class="sub">适合只有课表截图的情况；需要配置 API Key。识别结果会追加到现有课表，不会覆盖已有课程，也会尝试识别教材/要带的书。</p>
       </div>
 
       <div id="recognizeStatus" class="status" hidden></div>
@@ -113,6 +116,10 @@
       <label class="field">
         <span>任课教师</span>
         <input type="text" id="fTeacher" placeholder="选填">
+      </label>
+      <label class="field">
+        <span>教材 / 要带的书</span>
+        <input type="text" id="fBook" placeholder="如 高等数学第7版（选填）">
       </label>
       <label class="field">
         <span>上课地点</span>
@@ -175,6 +182,11 @@
         <h2>提醒</h2>
         <p class="sub">默认提前提醒时间（单门课可单独覆盖）</p>
         <div class="chips" id="sRemind"></div>
+        <label class="toggle-row">
+          <input type="checkbox" id="sBringBook">
+          <span>提醒里加「记得带书」</span>
+        </label>
+        <p class="sub">如果课程填了「教材/要带的书」，会优先显示具体书名</p>
         <p class="sub" id="pendingInfo"></p>
         <button class="primary block" id="btnReschedule">保存并重排所有提醒</button>
       </section>
@@ -238,6 +250,15 @@
             <option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="7">周日</option>
           </select>
           <button class="outline sm" id="btnAddMakeup">加补课</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>数据校准</h2>
+        <p class="sub">如果导入后课程整体错了一天，点下面按钮整体移动，不对可以反向再点一次。</p>
+        <div class="row-2">
+          <button class="outline block" id="btnShiftPrev">课程整体前移一天</button>
+          <button class="outline block" id="btnShiftNext">课程整体后移一天</button>
         </div>
       </section>
 

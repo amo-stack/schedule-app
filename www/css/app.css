@@ -590,12 +590,31 @@ html, body {
 .danger:active { opacity: 0.85; }
 .block { display: block; width: 100%; margin-top: 14px; }
 .row-2 { display: flex; gap: 12px; }
+.row-2 > * { flex: 1; }
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  font-size: 14px;
+  color: var(--text-1);
+}
+.toggle-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
 
 /* ---------- FAB ---------- */
-.fab {
+.fab-row {
   position: fixed;
   right: calc(50% - 270px + 20px);
   bottom: 28px;
+  display: flex;
+  gap: 12px;
+  z-index: 20;
+}
+.fab {
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: var(--accent-text);
   border: none;
@@ -606,12 +625,18 @@ html, body {
   box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
   box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent);
   cursor: pointer;
-  z-index: 20;
   transition: transform 0.12s, box-shadow 0.15s;
+}
+.fab.ghost {
+  background: var(--card);
+  color: var(--text-1);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
 }
 .fab:active { transform: scale(0.96); box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
   box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent); }
-@media (max-width: 560px) { .fab { right: 20px; } }
+.fab.ghost:active { background: var(--line); }
+@media (max-width: 560px) { .fab-row { right: 20px; } }
 
 /* ---------- 表单 ---------- */
 .field { display: block; margin-bottom: 16px; }

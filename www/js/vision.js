@@ -19,6 +19,7 @@ App.Vision = (function () {
 - startSection: 开始节次（数字，无则 null）
 - endSection: 结束节次（数字，无则 null）
 - weeksExpr: 上课周次原文，如 "1-16周" "1-16周(双)" "3,5,7周"，没有则 null
+- book: 该课需要带的教材/物品（如「高等数学第7版」「电脑」），没有则 null
 - confidence: 0-1 的置信度数字
 
 要求：
@@ -96,6 +97,7 @@ App.Vision = (function () {
       startSection: x.startSection ? Number(x.startSection) : undefined,
       endSection: x.endSection ? Number(x.endSection) : undefined,
       weeksExpr: x.weeksExpr ? String(x.weeksExpr) : undefined,
+      book: x.book ? String(x.book).trim() : undefined,
       confidence: typeof x.confidence === 'number' ? x.confidence : undefined,
     };
   }

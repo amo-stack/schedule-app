@@ -59,6 +59,7 @@ App.Store = (function () {
       model: '',
       sectionTimes: DEFAULT_SECTIONS,
       adjustments: { holidays: [], makeup: [] },
+      remindBringBook: true,
     };
   }
 
