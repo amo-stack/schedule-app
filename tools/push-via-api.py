@@ -31,10 +31,18 @@ def git_blob_sha(data):
 
 
 def main():
-    token = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('GH_TOKEN', '')
-    msg = sys.argv[2] if len(sys.argv) > 2 else 'update via api'
+    # 用法1（兼容旧）: push-via-api.py <token> [说明]
+    # 用法2（推荐，token 不暴露在命令行）: 先 set GH_TOKEN=xxx，再 push-via-api.py [说明]
+    #   第一个参数若形如 token（ghp_/github_pat_ 开头）则当作 token，否则视为说明并从环境变量读取
+    argv = sys.argv[1:]
+    if argv and argv[0].startswith(('ghp_', 'github_pat_')):
+        token = argv[0]
+        msg = argv[1] if len(argv) > 1 else 'update via api'
+    else:
+        token = os.environ.get('GH_TOKEN', '')
+        msg = argv[0] if argv else 'update via api'
     if not token:
-        raise SystemExit('需要 token: python push-via-api.py <token> [说明]')
+        raise SystemExit('需要 token: 先 set GH_TOKEN=xxx 再运行，或 push-via-api.py <token> [说明]')
 
     os.chdir(ROOT)
     files = subprocess.run(['git', 'ls-files', '-z'], capture_output=True, check=True)

@@ -1735,8 +1735,8 @@ window.App = window.App || {};
       await refreshSilenceStatus();
     };
 
-    $('btnShiftPrev').onclick = () => shiftDayOfWeek(-1);
-    $('btnShiftNext').onclick = () => shiftDayOfWeek(1);
+    $('btnShiftPrev').onclick = () => { shiftDayOfWeek(-1); showToast('课程已整体提前一天'); };
+    $('btnShiftNext').onclick = () => { shiftDayOfWeek(1); showToast('课程已整体延后一天'); };
 
     $('btnDedupe').onclick = () => {
       const removed = Store.dedupeCourses();
