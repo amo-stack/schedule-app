@@ -90,6 +90,28 @@ App.Store = (function () {
     setCourses([]);
   }
 
+  // 课程唯一签名：课名 + 星期 + 起止节次 + 周次。用于去重判定
+  function courseSig(c) {
+    const w = (c.weeks || []).slice().sort((a, b) => a - b).join(',');
+    return [c.name, c.dayOfWeek, c.startSection, c.endSection, w].join('|');
+  }
+
+  // 去掉完全重复的课程（同签名只保留第一门），返回移除数量
+  function dedupeCourses() {
+    const list = getCourses();
+    const seen = new Set();
+    const out = [];
+    let removed = 0;
+    list.forEach((c) => {
+      const sig = courseSig(c);
+      if (seen.has(sig)) { removed++; return; }
+      seen.add(sig);
+      out.push(c);
+    });
+    if (removed) setCourses(out);
+    return removed;
+  }
+
   function getSettings() {
     return Object.assign(defaultSettings(), read(K_SETTINGS, {}));
   }
@@ -147,6 +169,8 @@ App.Store = (function () {
     upsertCourse,
     deleteCourse,
     clearCourses,
+    courseSig,
+    dedupeCourses,
     getSettings,
     setSettings,
     getTerm,

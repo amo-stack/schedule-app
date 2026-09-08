@@ -1014,8 +1014,7 @@ window.App = window.App || {};
       );
       const s0 = settings.sectionTimes.find((x) => x.index === startSection);
       const s1 = settings.sectionTimes.find((x) => x.index === endSection);
-      Store.upsertCourse({
-        id: Store.newId(),
+      const course = {
         name: it.name,
         teacher: it.teacher,
         book: it.book || '',
@@ -1030,7 +1029,12 @@ window.App = window.App || {};
         weeksExpr: it.weeksExpr,
         color: Store.colorFor(it.name),
         remindBeforeMin: -1,
-      });
+      };
+      // 去重：若已存在同签名课程（同课名+星期+节次+周次），复用其 id 原地更新，避免重复导入产生副本
+      const sig = Store.courseSig(course);
+      const existing = Store.getCourses().find((c) => Store.courseSig(c) === sig);
+      course.id = existing ? existing.id : Store.newId();
+      Store.upsertCourse(course);
     });
 
     afterDataChange(`已导入 ${chosen.length} 门课`, true);
@@ -1733,6 +1737,11 @@ window.App = window.App || {};
 
     $('btnShiftPrev').onclick = () => shiftDayOfWeek(-1);
     $('btnShiftNext').onclick = () => shiftDayOfWeek(1);
+
+    $('btnDedupe').onclick = () => {
+      const removed = Store.dedupeCourses();
+      afterDataChange(removed ? `已去掉 ${removed} 门重复课程` : '没有重复课程', true);
+    };
 
     $('btnClear').onclick = () => {
       if (!confirm('确定清空所有课程与提醒？')) return;
