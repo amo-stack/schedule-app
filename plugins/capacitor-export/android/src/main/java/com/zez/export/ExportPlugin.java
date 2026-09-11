@@ -115,7 +115,7 @@ public class ExportPlugin extends Plugin {
             shareIntent.setType("image/png");
             shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(shareIntent, "分享到"));
+            getActivity().startActivity(Intent.createChooser(shareIntent, "分享到"));
             JSObject r = new JSObject();
             r.put("ok", true);
             call.resolve(r);
