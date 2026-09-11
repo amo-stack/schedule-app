@@ -8,7 +8,6 @@ import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
-import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -88,16 +87,30 @@ public class ExportPlugin extends Plugin {
         }
         try {
             byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
-            File cacheDir = getContext().getCacheDir();
-            File shareDir = new File(cacheDir, "export_share");
-            shareDir.mkdirs();
-            File file = new File(shareDir, filename);
-            try (FileOutputStream fos = new FileOutputStream(file)) {
-                fos.write(bytes);
-                fos.flush();
+            Context ctx = getContext();
+            Uri uri;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
+                values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/ScheduleAppShare");
+                uri = ctx.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) throw new IOException("MediaStore 插入失败");
+                try (OutputStream os = ctx.getContentResolver().openOutputStream(uri)) {
+                    if (os == null) throw new IOException("无法打开输出流");
+                    os.write(bytes);
+                    os.flush();
+                }
+            } else {
+                File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "ScheduleAppShare");
+                if (!dir.exists() && !dir.mkdirs()) throw new IOException("无法创建目录");
+                File file = new File(dir, filename);
+                try (FileOutputStream fos = new FileOutputStream(file)) {
+                    fos.write(bytes);
+                    fos.flush();
+                }
+                uri = Uri.fromFile(file);
             }
-            String authority = getContext().getPackageName() + ".exportfileprovider";
-            Uri uri = FileProvider.getUriForFile(getContext(), authority, file);
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType("image/png");
             shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
