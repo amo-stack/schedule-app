@@ -33,9 +33,12 @@
         <button class="seg" data-view="day">日</button>
       </div>
       <button class="ghost sm" id="btnExport">导出</button>
+      <button class="ghost sm" id="btnExportAll">导出整学期</button>
     </div>
 
     <div id="examWidget" class="exam-widget" hidden></div>
+
+    <div id="weekTodayCard" class="today-card" hidden></div>
 
     <div id="gridWrap" class="grid-wrap">
       <div id="gridHead" class="grid-head">
@@ -338,6 +341,18 @@
     <button class="tab active" id="tabSchedule">📚 课程表</button>
     <button class="tab" id="tabExam">📝 考试</button>
   </nav>
+
+  <div id="courseDetail" class="sheet-modal" hidden>
+    <div class="sm-mask" data-close></div>
+    <div class="sm-card">
+      <div class="cd-name"></div>
+      <div class="cd-rows"></div>
+      <div class="sm-actions">
+        <button class="ghost" data-close>关闭</button>
+        <button class="primary cd-edit">编辑</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast" hidden></div>
 </div>

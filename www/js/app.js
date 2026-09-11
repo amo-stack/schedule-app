@@ -23,6 +23,12 @@ window.App = window.App || {};
     }
   }
 
+  function isDarkMode() {
+    const pref = (state.settings.theme || 'auto');
+    const sys = window.matchMedia('(prefers-color-scheme: dark)');
+    return pref === 'dark' || (pref === 'auto' && sys.matches);
+  }
+
   const state = {
     page: 'home',
     viewMode: 'week',
@@ -177,8 +183,10 @@ window.App = window.App || {};
     $('gridWrap').hidden = empty || state.viewMode !== 'week';
     $('dayWrap').hidden = empty || state.viewMode !== 'day';
 
+    const mon = Term.dateOfTermWeek(state.term.startDate, state.week, 1);
+    const sun = Term.addDays(mon, 6);
     $('weekLabel').textContent = `第 ${state.week} 周` + (state.week === Term.currentWeekOf(state.term.startDate, state.term.totalWeeks) ? '（本周）' : '');
-    $('weekDate').textContent = Term.toISODate(Term.dateOfTermWeek(state.term.startDate, state.week, 1)) + ' 起';
+    $('weekDate').textContent = `${mon.getMonth() + 1}.${mon.getDate()} - ${sun.getMonth() + 1}.${sun.getDate()}`;
 
     if (empty) {
       $('conflictBar').hidden = true;
@@ -188,7 +196,8 @@ window.App = window.App || {};
     renderConflictBar();
     renderExamWidget();
 
-    if (state.viewMode === 'week') renderGrid();
+    $('weekTodayCard').hidden = true;
+    if (state.viewMode === 'week') { renderGrid(); renderWeekTodayCard(); }
     else renderDay();
   }
 
@@ -392,7 +401,7 @@ window.App = window.App || {};
           b.querySelector('.n').textContent = c.name;
           b.querySelector('.p').textContent = c.location || '';
           fitCourseName(b.querySelector('.n'), c.name, span);
-          b.onclick = () => openCourse(c.id);
+          b.onclick = () => showCourseDetail(c);
           body.appendChild(b);
         } else {
           const e = document.createElement('div');
@@ -490,18 +499,18 @@ window.App = window.App || {};
       info.appendChild(m);
       item.appendChild(bar);
       item.appendChild(info);
-      item.onclick = () => openCourse(c.id);
+      item.onclick = () => showCourseDetail(c);
       wrap.appendChild(item);
     });
   }
 
   /* 今日概览卡片 */
 
-  function renderTodayCard(list, isMakeup, _unused, isHoliday) {
-    const card = $('todayCard');
+  function renderTodayCard(card, list, isMakeup, _unused, isHoliday, forceToday) {
+    card = card || $('todayCard');
     const today = todayDow();
     const curWeek = Term.currentWeekOf(state.term.startDate, state.term.totalWeeks);
-    const isToday = state.day === today && state.week === curWeek;
+    const isToday = forceToday || (state.day === today && state.week === curWeek);
 
     card.innerHTML = '';
     card.hidden = false;
@@ -581,6 +590,48 @@ window.App = window.App || {};
     top.appendChild(main);
     top.appendChild(date);
     card.insertBefore(top, card.firstChild);
+  }
+
+  function renderWeekTodayCard() {
+    const card = $('weekTodayCard');
+    if (!card) return;
+    const td = todayDow();
+    const cw = Term.currentWeekOf(state.term.startDate, state.term.totalWeeks);
+    const monday = Term.dateOfTermWeek(state.term.startDate, cw, 1);
+    const date = Term.addDays(monday, td - 1);
+    const dateStr = Term.toISODate(date);
+    const adj = adjSets();
+    let isHoliday = adj.holidaySet.has(dateStr);
+    let isMakeup = false, targetWeek = cw, targetDow = td;
+    if (!isHoliday && adj.makeupMap[dateStr]) {
+      const m = adj.makeupMap[dateStr];
+      targetWeek = m.week; targetDow = m.dayOfWeek; isMakeup = true;
+    }
+    const list = state.courses.filter((c) => c.dayOfWeek === targetDow && (c.weeks || []).indexOf(targetWeek) >= 0);
+    renderTodayCard(card, list, isMakeup, false, isHoliday, true);
+  }
+
+  function showCourseDetail(c) {
+    const box = $('courseDetail');
+    if (!box) return;
+    box.querySelector('.cd-name').textContent = c.name || '未命名课程';
+    const rows = [
+      ['时间', `${c.startTime}-${c.endTime} · 第${c.startSection}${c.endSection && c.endSection !== c.startSection ? '-' + c.endSection : ''}节`],
+      ['地点', c.location || '未填'],
+      ['教师', c.teacher || '未填'],
+      ['周次', Weeks.describeWeeks(c.weeks, state.term.totalWeeks)],
+    ];
+    const rb = box.querySelector('.cd-rows');
+    rb.innerHTML = '';
+    rows.forEach(([k, v]) => {
+      const r = document.createElement('div');
+      r.className = 'cd-row';
+      const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k;
+      const vv = document.createElement('span'); vv.className = 'v'; vv.textContent = v;
+      r.appendChild(kk); r.appendChild(vv); rb.appendChild(r);
+    });
+    box.querySelector('.cd-edit').onclick = () => { box.hidden = true; openCourse(c.id); };
+    box.hidden = false;
   }
 
   function addSub(card, text) {
@@ -1310,146 +1361,147 @@ window.App = window.App || {};
     ctx.closePath();
   }
 
-  function exportWeekImage() {
+  function exportWeekImage(opts) {
+    opts = opts || {};
     if (!state.term) return toast('请先在设置里填写学期开始日期');
     const sections = state.settings.sectionTimes;
-    const adj = adjSets();
-    // 高清横排清晰版：加大尺寸与字号，课程名横排并自动换行
+    const isDark = isDarkMode();
     const timeW = 54, colW = 100, rowH = 78, pad = 20, headH = 58;
     const W = pad * 2 + timeW + 7 * colW;
-    const H = pad * 2 + headH + sections.length * rowH;
     const scale = 3;
-    const c = document.createElement('canvas');
-    c.width = W * scale;
-    c.height = H * scale;
-    const ctx = c.getContext('2d');
-    ctx.scale(scale, scale);
-    ctx.textBaseline = 'middle';
+    const adj = adjSets();
 
-    // 背景
-    ctx.fillStyle = '#F1F5F9';
-    ctx.fillRect(0, 0, W, H);
+    const C = isDark
+      ? { bg: '#0B1020', title: '#F8FAFC', sub: '#94A3B8', cellA: '#0F172A', cellB: '#131C2E', time: '#64748B', timel: '#475569', todayBg: 'rgba(129,140,248,0.20)', todayLine: '#818CF8' }
+      : { bg: '#F1F5F9', title: '#0F172A', sub: '#64748B', cellA: '#FBFCFE', cellB: '#F4F7FB', time: '#94A3B8', timel: '#B6C2D1', todayBg: 'rgba(99,102,241,0.10)', todayLine: '#6366F1' };
 
-    // 标题 + 周次日期范围
-    const monday = Term.dateOfTermWeek(state.term.startDate, state.week, 1);
-    const sunday = Term.addDays(monday, 6);
-    const range = `${monday.getMonth() + 1}.${monday.getDate()}-${sunday.getMonth() + 1}.${sunday.getDate()}`;
-    ctx.fillStyle = '#0F172A';
-    ctx.font = '700 18px -apple-system, "PingFang SC", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(`课程表 · 第 ${state.week} 周`, pad, pad + 14);
-    ctx.fillStyle = '#64748B';
-    ctx.font = '500 13px -apple-system, sans-serif';
-    ctx.fillText(range, pad, pad + 36);
+    const curWeek = Term.currentWeekOf(state.term.startDate, state.term.totalWeeks);
+    const td = todayDow();
+    const isThisWeek = (w) => w === curWeek;
 
-    // 列头（周一~周日 + 日期）
-    const labels = ['一', '二', '三', '四', '五', '六', '日'];
-    ctx.textAlign = 'center';
-    labels.forEach((l, d) => {
-      const x = pad + timeW + d * colW + colW / 2;
-      const date = Term.addDays(monday, d);
-      ctx.fillStyle = '#0F172A';
-      ctx.font = '700 14px sans-serif';
-      ctx.fillText('周' + l, x, pad + 18);
-      ctx.fillStyle = '#64748B';
-      ctx.font = '500 12px sans-serif';
-      ctx.fillText(`${date.getMonth() + 1}.${date.getDate()}`, x, pad + 38);
-    });
-
-    // 时间列 + 单元格
-    sections.forEach((s, i) => {
-      const y = pad + headH + i * rowH;
-      ctx.fillStyle = '#94A3B8';
-      ctx.font = '600 12px sans-serif';
-      ctx.fillText(String(s.index), pad + timeW / 2, y + rowH / 2 - 9);
-      ctx.font = '500 11px sans-serif';
-      ctx.fillStyle = '#B6C2D1';
-      ctx.fillText(s.start, pad + timeW / 2, y + rowH / 2 + 9);
-      for (let d = 0; d < 7; d++) {
-        const x = pad + timeW + d * colW;
-        ctx.fillStyle = (i % 2 === 0) ? '#FBFCFE' : '#F4F7FB';
-        roundRect(ctx, x + 2, y + 2, colW - 4, rowH - 4, 10);
-        ctx.fill();
-      }
-    });
-
-    // 课程名自动换行辅助
-    const wrapText = (text, maxW, fs) => {
+    const wrapText = (ctx, text, maxW, fs) => {
       ctx.font = `600 ${fs}px -apple-system, sans-serif`;
-      const chars = [...text];
-      const lines = [];
-      let cur = '';
+      const chars = [...text]; const lines = []; let cur = '';
       for (const ch of chars) {
-        if (cur && ctx.measureText(cur + ch).width > maxW) {
-          lines.push(cur); cur = ch;
-        } else {
-          cur += ch;
-        }
+        if (cur && ctx.measureText(cur + ch).width > maxW) { lines.push(cur); cur = ch; }
+        else cur += ch;
       }
       if (cur) lines.push(cur);
       return lines;
     };
 
-    // 课程块（横排课程名 + 地点）
-    sections.forEach((s, i) => {
-      const y = pad + headH + i * rowH;
-      for (let d = 1; d <= 7; d++) {
-        const date = Term.dateOfTermWeek(state.term.startDate, state.week, d);
-        const dateStr = Term.toISODate(date);
-        if (adj.holidaySet.has(dateStr)) continue;
-        let targetWeek = state.week, targetDow = d, isMakeup = false;
-        if (adj.makeupMap[dateStr]) {
-          const m = adj.makeupMap[dateStr];
-          targetWeek = m.week; targetDow = m.dayOfWeek; isMakeup = true;
+    const drawWeek = (ctx, week, topY) => {
+      const monday = Term.dateOfTermWeek(state.term.startDate, week, 1);
+      const sunday = Term.addDays(monday, 6);
+      const range = `${monday.getMonth() + 1}.${monday.getDate()}-${sunday.getMonth() + 1}.${sunday.getDate()}`;
+      let y = topY;
+      ctx.fillStyle = C.title; ctx.textAlign = 'left';
+      ctx.font = '700 18px -apple-system, "PingFang SC", sans-serif';
+      ctx.fillText(`课程表 · 第 ${week} 周`, pad, y + 14);
+      ctx.fillStyle = C.sub; ctx.font = '500 13px -apple-system, sans-serif';
+      ctx.fillText(range, pad, y + 36);
+      y += headH;
+      const labels = ['一', '二', '三', '四', '五', '六', '日'];
+      ctx.textAlign = 'center';
+      labels.forEach((l, d) => {
+        const x = pad + timeW + d * colW + colW / 2;
+        const date = Term.addDays(monday, d);
+        const isTD = isThisWeek(week) && (d + 1) === td;
+        ctx.fillStyle = isTD ? C.todayLine : C.title; ctx.font = '700 14px sans-serif';
+        ctx.fillText('周' + l, x, y + 18);
+        ctx.fillStyle = isTD ? C.todayLine : C.sub; ctx.font = '500 12px sans-serif';
+        ctx.fillText(`${date.getMonth() + 1}.${date.getDate()}`, x, y + 38);
+      });
+      y += headH;
+      sections.forEach((s, i) => {
+        const cy = y + i * rowH;
+        ctx.fillStyle = C.time; ctx.font = '600 12px sans-serif';
+        ctx.fillText(String(s.index), pad + timeW / 2, cy + rowH / 2 - 9);
+        ctx.font = '500 11px sans-serif'; ctx.fillStyle = C.timel;
+        ctx.fillText(s.start, pad + timeW / 2, cy + rowH / 2 + 9);
+        for (let d = 0; d < 7; d++) {
+          const x = pad + timeW + d * colW;
+          const isTD = isThisWeek(week) && (d + 1) === td;
+          ctx.fillStyle = isTD ? C.todayBg : (i % 2 === 0 ? C.cellA : C.cellB);
+          roundRect(ctx, x + 2, cy + 2, colW - 4, rowH - 4, 10); ctx.fill();
+          if (isTD) { ctx.strokeStyle = C.todayLine; ctx.lineWidth = 2; roundRect(ctx, x + 2, cy + 2, colW - 4, rowH - 4, 10); ctx.stroke(); }
         }
-        const course = state.courses.find(
-          (x) => x.dayOfWeek === targetDow && x.startSection === s.index && (x.weeks || []).indexOf(targetWeek) >= 0
-        );
-        if (!course) continue;
-        const span = Math.max(1, (course.endSection || course.startSection) - course.startSection + 1);
-        const x = pad + timeW + (d - 1) * colW + 2;
-        const yy = y + 2;
-        const w = colW - 4;
-        const h = span * rowH - 4;
-        ctx.fillStyle = course.color || '#6366F1';
-        roundRect(ctx, x, yy, w, h, 10);
-        ctx.fill();
-        // 课程名（横排，自动换行）
-        const nameFs = 14;
-        const nameLines = wrapText(course.name, w - 12, nameFs);
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        const lineH = nameFs + 3;
-        const nameBlockH = nameLines.length * lineH;
-        let ny = (span === 1) ? yy + h / 2 - (nameBlockH - lineH) / 2 : yy + 8 + nameFs / 2;
-        nameLines.forEach((ln) => { ctx.fillText(ln, x + w / 2, ny); ny += lineH; });
-        // 地点（横排，块够高才画）
-        if (span > 1 && course.location) {
-          ctx.font = '500 11px -apple-system, sans-serif';
-          ctx.fillStyle = 'rgba(255,255,255,0.9)';
-          const locLines = wrapText(course.location, w - 12, 11);
-          let ly = yy + h - 8 - (locLines.length - 1) * 14 - 7;
-          locLines.forEach((ln) => { ctx.fillText(ln, x + w / 2, ly); ly += 14; });
+      });
+      sections.forEach((s, i) => {
+        const cy = y + i * rowH;
+        for (let d = 1; d <= 7; d++) {
+          const date = Term.dateOfTermWeek(state.term.startDate, week, d);
+          const dateStr = Term.toISODate(date);
+          if (adj.holidaySet.has(dateStr)) continue;
+          let targetWeek = week, targetDow = d, isMakeup = false;
+          if (adj.makeupMap[dateStr]) { const m = adj.makeupMap[dateStr]; targetWeek = m.week; targetDow = m.dayOfWeek; isMakeup = true; }
+          const course = state.courses.find((x) => x.dayOfWeek === targetDow && x.startSection === s.index && (x.weeks || []).indexOf(targetWeek) >= 0);
+          if (!course) continue;
+          const span = Math.max(1, (course.endSection || course.startSection) - course.startSection + 1);
+          const x = pad + timeW + (d - 1) * colW + 2;
+          const yy = cy + 2;
+          const w = colW - 4;
+          const h = span * rowH - 4;
+          ctx.fillStyle = course.color || '#6366F1';
+          roundRect(ctx, x, yy, w, h, 10); ctx.fill();
+          const nameFs = 14;
+          const nameLines = wrapText(ctx, course.name, w - 12, nameFs);
+          ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+          const lineH = nameFs + 3;
+          const nameBlockH = nameLines.length * lineH;
+          let ny = (span === 1) ? yy + h / 2 - (nameBlockH - lineH) / 2 : yy + 8 + nameFs / 2;
+          nameLines.forEach((ln) => { ctx.fillText(ln, x + w / 2, ny); ny += lineH; });
+          const sub = [course.location, course.teacher].filter(Boolean);
+          if (span > 1 && sub.length) {
+            ctx.font = '500 11px -apple-system, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            const items = wrapText(ctx, sub.join(' · '), w - 12, 11);
+            let ly = yy + h - 8 - (items.length - 1) * 14 - 7;
+            items.forEach((ln) => { ctx.fillText(ln, x + w / 2, ly); ly += 14; });
+          }
         }
-      }
-    });
+      });
+      return y + sections.length * rowH;
+    };
+
+    const weeks = opts.all
+      ? (() => {
+          const set = new Set();
+          state.courses.forEach((c) => (c.weeks || []).forEach((w) => set.add(w)));
+          const arr = [...set].sort((a, b) => a - b);
+          return arr.length ? arr : [state.week];
+        })()
+      : [state.week];
+
+    const gapBetween = 24, footerH = 40;
+    let totalH = 0;
+    weeks.forEach((w, idx) => { totalH += headH + sections.length * rowH + (idx > 0 ? gapBetween : 0); });
+    const H = pad * 2 + totalH + footerH;
+    const c = document.createElement('canvas');
+    c.width = W * scale; c.height = H * scale;
+    const ctx = c.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+
+    let topY = pad;
+    weeks.forEach((w, idx) => { if (idx > 0) topY += gapBetween; topY = drawWeek(ctx, w, topY); });
+
+    const termName = (state.term && state.term.name) ? state.term.name : '本学期';
+    const now = new Date();
+    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    ctx.fillStyle = C.sub; ctx.font = '500 12px -apple-system, sans-serif';
+    ctx.textAlign = 'left'; ctx.fillText(`${termName} · 生成于 ${stamp}`, pad, H - footerH / 2);
+    ctx.textAlign = 'right'; ctx.fillText(opts.all ? `共 ${weeks.length} 周` : `第 ${state.week} 周`, W - pad, H - footerH / 2);
 
     c.toBlob(async (blob) => {
       if (!blob) return toast('生成图片失败');
-      const fileName = `课程表-第${state.week}周.png`;
+      const fileName = opts.all ? `课程表-全学期.png` : `课程表-第${state.week}周.png`;
       try {
         const file = new File([blob], fileName, { type: 'image/png' });
         const url = URL.createObjectURL(blob);
-
-        // Web 兜底：触发浏览器下载
         const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        // 原生环境：保存到系统相册（DCIM/ScheduleApp）
+        a.href = url; a.download = fileName;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
         if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
           const Export = Capacitor.Plugins && Capacitor.Plugins.Export;
           if (Export && Export.saveImageToGallery) {
@@ -1461,14 +1513,8 @@ window.App = window.App || {};
             });
             await Export.saveImageToGallery({ base64, filename: fileName });
             toast('已保存到相册（DCIM/ScheduleApp）');
-          } else {
-            toast('图片已生成，请从下载目录查看');
-          }
-        } else {
-          toast('图片已生成，请从下载目录查看');
-        }
-
-        // 若系统支持分享，再弹分享面板
+          } else { toast('图片已生成，请从下载目录查看'); }
+        } else { toast('图片已生成，请从下载目录查看'); }
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           navigator.share({ files: [file], title: '课程表' }).catch(() => {});
         }
@@ -1716,6 +1762,8 @@ window.App = window.App || {};
     $('tabSchedule').onclick = () => setTab('schedule');
     $('tabExam').onclick = () => setTab('exam');
     $('btnExport').onclick = exportWeekImage;
+    $('btnExportAll').onclick = () => exportWeekImage({ all: true });
+    document.querySelectorAll('#courseDetail [data-close]').forEach((el) => { el.onclick = () => { $('courseDetail').hidden = true; }; });
     $('btnAddExam').onclick = () => openExam('new');
     $('btnExamCamera').onclick = recognizeExams;
     $('eDelete').onclick = () => {
