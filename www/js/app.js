@@ -1314,10 +1314,11 @@ window.App = window.App || {};
     if (!state.term) return toast('请先在设置里填写学期开始日期');
     const sections = state.settings.sectionTimes;
     const adj = adjSets();
-    const timeW = 42, colW = 58, rowH = 56, pad = 16, headH = 44;
+    // 高清横排清晰版：加大尺寸与字号，课程名横排并自动换行
+    const timeW = 54, colW = 100, rowH = 78, pad = 20, headH = 58;
     const W = pad * 2 + timeW + 7 * colW;
     const H = pad * 2 + headH + sections.length * rowH;
-    const scale = 2;
+    const scale = 3;
     const c = document.createElement('canvas');
     c.width = W * scale;
     c.height = H * scale;
@@ -1325,47 +1326,71 @@ window.App = window.App || {};
     ctx.scale(scale, scale);
     ctx.textBaseline = 'middle';
 
-    // 背景（画布风浅灰）
-    ctx.fillStyle = '#EEF1F6';
+    // 背景
+    ctx.fillStyle = '#F1F5F9';
     ctx.fillRect(0, 0, W, H);
 
-    // 标题
-    ctx.fillStyle = '#0F172A';
-    ctx.font = '600 16px -apple-system, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(`课程表 · 第 ${state.week} 周`, pad, pad + 12);
-
-    // 列头
+    // 标题 + 周次日期范围
     const monday = Term.dateOfTermWeek(state.term.startDate, state.week, 1);
+    const sunday = Term.addDays(monday, 6);
+    const range = `${monday.getMonth() + 1}.${monday.getDate()}-${sunday.getMonth() + 1}.${sunday.getDate()}`;
+    ctx.fillStyle = '#0F172A';
+    ctx.font = '700 18px -apple-system, "PingFang SC", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`课程表 · 第 ${state.week} 周`, pad, pad + 14);
+    ctx.fillStyle = '#64748B';
+    ctx.font = '500 13px -apple-system, sans-serif';
+    ctx.fillText(range, pad, pad + 36);
+
+    // 列头（周一~周日 + 日期）
     const labels = ['一', '二', '三', '四', '五', '六', '日'];
     ctx.textAlign = 'center';
     labels.forEach((l, d) => {
       const x = pad + timeW + d * colW + colW / 2;
       const date = Term.addDays(monday, d);
-      ctx.fillStyle = '#64748B';
-      ctx.font = '600 13px sans-serif';
-      ctx.fillText(l, x, pad + 30);
       ctx.fillStyle = '#0F172A';
-      ctx.font = '11px sans-serif';
-      ctx.fillText(`${date.getMonth() + 1}.${date.getDate()}`, x, pad + 44);
+      ctx.font = '700 14px sans-serif';
+      ctx.fillText('周' + l, x, pad + 18);
+      ctx.fillStyle = '#64748B';
+      ctx.font = '500 12px sans-serif';
+      ctx.fillText(`${date.getMonth() + 1}.${date.getDate()}`, x, pad + 38);
     });
 
     // 时间列 + 单元格
     sections.forEach((s, i) => {
       const y = pad + headH + i * rowH;
       ctx.fillStyle = '#94A3B8';
-      ctx.font = '10px sans-serif';
-      ctx.fillText(String(s.index), pad + timeW / 2, y + rowH / 2 - 8);
-      ctx.fillText(s.start, pad + timeW / 2, y + rowH / 2 + 6);
+      ctx.font = '600 12px sans-serif';
+      ctx.fillText(String(s.index), pad + timeW / 2, y + rowH / 2 - 9);
+      ctx.font = '500 11px sans-serif';
+      ctx.fillStyle = '#B6C2D1';
+      ctx.fillText(s.start, pad + timeW / 2, y + rowH / 2 + 9);
       for (let d = 0; d < 7; d++) {
         const x = pad + timeW + d * colW;
-        ctx.fillStyle = '#F8FAFC';
-        roundRect(ctx, x + 1.5, y + 1.5, colW - 3, rowH - 3, 8);
+        ctx.fillStyle = (i % 2 === 0) ? '#FBFCFE' : '#F4F7FB';
+        roundRect(ctx, x + 2, y + 2, colW - 4, rowH - 4, 10);
         ctx.fill();
       }
     });
 
-    // 课程块
+    // 课程名自动换行辅助
+    const wrapText = (text, maxW, fs) => {
+      ctx.font = `600 ${fs}px -apple-system, sans-serif`;
+      const chars = [...text];
+      const lines = [];
+      let cur = '';
+      for (const ch of chars) {
+        if (cur && ctx.measureText(cur + ch).width > maxW) {
+          lines.push(cur); cur = ch;
+        } else {
+          cur += ch;
+        }
+      }
+      if (cur) lines.push(cur);
+      return lines;
+    };
+
+    // 课程块（横排课程名 + 地点）
     sections.forEach((s, i) => {
       const y = pad + headH + i * rowH;
       for (let d = 1; d <= 7; d++) {
@@ -1375,9 +1400,7 @@ window.App = window.App || {};
         let targetWeek = state.week, targetDow = d, isMakeup = false;
         if (adj.makeupMap[dateStr]) {
           const m = adj.makeupMap[dateStr];
-          targetWeek = m.week;
-          targetDow = m.dayOfWeek;
-          isMakeup = true;
+          targetWeek = m.week; targetDow = m.dayOfWeek; isMakeup = true;
         }
         const course = state.courses.find(
           (x) => x.dayOfWeek === targetDow && x.startSection === s.index && (x.weeks || []).indexOf(targetWeek) >= 0
@@ -1389,42 +1412,24 @@ window.App = window.App || {};
         const w = colW - 4;
         const h = span * rowH - 4;
         ctx.fillStyle = course.color || '#6366F1';
-        roundRect(ctx, x, yy, w, h, 8);
+        roundRect(ctx, x, yy, w, h, 10);
         ctx.fill();
+        // 课程名（横排，自动换行）
+        const nameFs = 14;
+        const nameLines = wrapText(course.name, w - 12, nameFs);
         ctx.fillStyle = '#fff';
-
-        // 课程名竖排绘制，按块高动态压字号，保证完整显示在卡片内
-        const availH = h - 12;
-        const spacing = 1;
-        let fs = 12;
-        while (fs > 8) {
-          const need = course.name.length * fs + Math.max(0, course.name.length - 1) * spacing;
-          if (need <= availH) break;
-          fs -= 1;
-        }
-        ctx.font = `600 ${fs}px sans-serif`;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const cx = x + w / 2;
-        let cy = yy + 8 + fs / 2;
-        for (let k = 0; k < course.name.length; k++) {
-          ctx.fillText(course.name[k], cx, cy);
-          cy += fs + spacing;
-        }
-
-        // 地点也竖排，放在名字右侧（仅非短块且放得下）
+        const lineH = nameFs + 3;
+        const nameBlockH = nameLines.length * lineH;
+        let ny = (span === 1) ? yy + h / 2 - (nameBlockH - lineH) / 2 : yy + 8 + nameFs / 2;
+        nameLines.forEach((ln) => { ctx.fillText(ln, x + w / 2, ny); ny += lineH; });
+        // 地点（横排，块够高才画）
         if (span > 1 && course.location) {
-          const locFs = 9;
-          const locH = course.location.length * locFs + Math.max(0, course.location.length - 1) * spacing;
-          if (locH <= availH) {
-            ctx.font = `${locFs}px sans-serif`;
-            let ly = yy + 8 + locFs / 2;
-            const lx = cx + fs / 2 + locFs + 2;
-            for (let k = 0; k < course.location.length; k++) {
-              ctx.fillText(course.location[k], lx, ly);
-              ly += locFs + spacing;
-            }
-          }
+          ctx.font = '500 11px -apple-system, sans-serif';
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          const locLines = wrapText(course.location, w - 12, 11);
+          let ly = yy + h - 8 - (locLines.length - 1) * 14 - 7;
+          locLines.forEach((ln) => { ctx.fillText(ln, x + w / 2, ly); ly += 14; });
         }
       }
     });
