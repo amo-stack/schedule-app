@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
+import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -69,6 +70,44 @@ public class ExportPlugin extends Plugin {
             call.resolve(r);
         } catch (Exception e) {
             call.reject("保存到相册失败：" + e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod()
+    public void shareImage(PluginCall call) {
+        String base64 = call.getString("base64");
+        String filename = call.getString("filename");
+        if (base64 == null) base64 = "";
+        if (filename == null) filename = "timetable_share.png";
+        if (base64.isEmpty()) {
+            call.reject("没有图片数据");
+            return;
+        }
+        if (!filename.toLowerCase().endsWith(".png")) {
+            filename = filename + ".png";
+        }
+        try {
+            byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+            File cacheDir = getContext().getCacheDir();
+            File shareDir = new File(cacheDir, "export_share");
+            shareDir.mkdirs();
+            File file = new File(shareDir, filename);
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(bytes);
+                fos.flush();
+            }
+            String authority = getContext().getPackageName() + ".exportfileprovider";
+            Uri uri = FileProvider.getUriForFile(getContext(), authority, file);
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("image/png");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(shareIntent, "分享到"));
+            JSObject r = new JSObject();
+            r.put("ok", true);
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("分享失败：" + e.getMessage(), e);
         }
     }
 }

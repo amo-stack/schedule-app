@@ -959,3 +959,22 @@ button.sm { padding: 6px 12px; font-size: 12px; }
 .cd-row .v { color: var(--text, #0F172A); }
 .sm-actions { display: flex; gap: 10px; margin-top: 16px; }
 .sm-actions button { flex: 1; }
+
+/* 学期切换栏（首页） */
+.termbar { display: flex; align-items: center; gap: 8px; padding: 0 16px 4px; }
+.term-select {
+  flex: 1; max-width: 240px; padding: 7px 10px; font-size: 13px;
+  border: 1px solid var(--line, #E2E8F0); border-radius: 10px;
+  background: var(--bg-2, #fff); color: var(--text, #0F172A);
+}
+
+/* 学期管理列表（设置页） */
+.term-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.term-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line, #E2E8F0); border-radius: 12px; background: var(--bg-2, #fff); }
+.term-row.active { border-color: var(--accent, #6366F1); background: var(--accent-soft, #EEF2FF); }
+.term-info { flex: 1; min-width: 0; }
+.term-name { font-size: 14px; font-weight: 600; color: var(--text, #0F172A); }
+.term-sub { font-size: 12px; color: var(--text-3, #64748B); margin-top: 2px; }
+.term-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.tag-current { font-size: 12px; font-weight: 600; color: var(--accent, #6366F1); padding: 3px 8px; border-radius: 999px; background: var(--accent-soft, #EEF2FF); }
+.danger { color: #E11D48 !important; }

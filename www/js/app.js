@@ -45,6 +45,8 @@ window.App = window.App || {};
     term: Store.getTerm(),
     settings: Store.getSettings(),
     courses: Store.getCourses(),
+    terms: Store.getTerms(),
+    activeTermId: Store.getActiveTermId(),
   };
 
   const $ = (id) => document.getElementById(id);
@@ -61,11 +63,24 @@ window.App = window.App || {};
     state.term = Store.getTerm();
     state.settings = Store.getSettings();
     state.courses = Store.getCourses();
+    state.terms = Store.getTerms();
+    state.activeTermId = Store.getActiveTermId();
   }
 
   function refreshWeek() {
     const w = Term.currentWeekOf(state.term.startDate, state.term.totalWeeks);
     state.week = w > 0 ? w : 1;
+  }
+
+  async function switchTerm(id) {
+    if (!id || id === state.activeTermId) return;
+    Store.setActiveTermId(id);
+    reload();
+    refreshWeek();
+    if (window.Scheduler && Scheduler.rescheduleAll) {
+      try { await Scheduler.rescheduleAll(); } catch (e) {}
+    }
+    renderHome();
   }
 
   /* ---------- 页面切换 ---------- */
@@ -187,6 +202,20 @@ window.App = window.App || {};
     const sun = Term.addDays(mon, 6);
     $('weekLabel').textContent = `第 ${state.week} 周` + (state.week === Term.currentWeekOf(state.term.startDate, state.term.totalWeeks) ? '（本周）' : '');
     $('weekDate').textContent = `${mon.getMonth() + 1}.${mon.getDate()} - ${sun.getMonth() + 1}.${sun.getDate()}`;
+
+    // 学期切换下拉
+    const ts = $('termSelect');
+    if (ts) {
+      ts.innerHTML = '';
+      state.terms.forEach((t) => {
+        const o = document.createElement('option');
+        o.value = t.id;
+        const m = Term.dateOfTermWeek(t.startDate, 1, 1);
+        o.textContent = `${t.name}（${m.getFullYear()}.${m.getMonth() + 1}）`;
+        ts.appendChild(o);
+      });
+      ts.value = state.activeTermId;
+    }
 
     if (empty) {
       $('conflictBar').hidden = true;
@@ -1498,31 +1527,54 @@ window.App = window.App || {};
       const fileName = opts.all ? `课程表-全学期.png` : `课程表-第${state.week}周.png`;
       try {
         const file = new File([blob], fileName, { type: 'image/png' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = fileName;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
-          const Export = Capacitor.Plugins && Capacitor.Plugins.Export;
-          if (Export && Export.saveImageToGallery) {
-            const base64 = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result.split(',')[1]);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-            await Export.saveImageToGallery({ base64, filename: fileName });
-            toast('已保存到相册（DCIM/ScheduleApp）');
-          } else { toast('图片已生成，请从下载目录查看'); }
-        } else { toast('图片已生成，请从下载目录查看'); }
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: '课程表' }).catch(() => {});
+        const isNative = window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+        const Export = isNative && Capacitor.Plugins && Capacitor.Plugins.Export;
+
+        // 分享模式：直接唤起系统分享面板（可选微信/QQ）
+        if (opts.share) {
+          if (Export && Export.shareImage) {
+            const base64 = await blobToBase64(blob);
+            await Export.shareImage({ base64, filename: fileName });
+            toast('已唤起分享，选择微信 / QQ 即可发送');
+          } else if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: '课程表' });
+          } else {
+            downloadBlob(blob, fileName);
+            toast('当前环境不支持直接分享，已保存到下载目录');
+          }
+          return;
         }
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
+
+        // 默认模式：保存到相册（DCIM/ScheduleApp）
+        downloadBlob(blob, fileName);
+        if (Export && Export.saveImageToGallery) {
+          const base64 = await blobToBase64(blob);
+          await Export.saveImageToGallery({ base64, filename: fileName });
+          toast('已保存到相册（DCIM/ScheduleApp）');
+        } else {
+          toast('图片已生成，请从下载目录查看');
+        }
       } catch (e) {
         toast('导出失败：' + (e && e.message ? e.message : e));
       }
     }, 'image/png');
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result || '').split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function downloadBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
   }
 
   /* ---------- 数据校准：整体移动一天 ---------- */
@@ -1633,8 +1685,10 @@ window.App = window.App || {};
     $('sAutoSilence').checked = !!s.autoSilence;
     refreshSilenceStatus();
 
+    $('sTermName').value = t.name || '';
     $('sStart').value = t.startDate;
     $('sTotalWeeks').value = t.totalWeeks;
+    renderTermManager();
     $('sApiKey').value = s.apiKey;
     $('sApiBase').value = s.apiBase;
     $('sModel').value = s.model;
@@ -1666,6 +1720,56 @@ window.App = window.App || {};
     renderAdjustments();
   }
 
+  function renderTermManager() {
+    const box = $('termList');
+    if (!box) return;
+    box.innerHTML = '';
+    state.terms.forEach((t) => {
+      const row = document.createElement('div');
+      row.className = 'term-row' + (t.id === state.activeTermId ? ' active' : '');
+      const m = Term.dateOfTermWeek(t.startDate, 1, 1);
+      const info = document.createElement('div');
+      info.className = 'term-info';
+      info.innerHTML = '<div class="term-name"></div><div class="term-sub"></div>';
+      info.querySelector('.term-name').textContent = t.name || '未命名学期';
+      info.querySelector('.term-sub').textContent = `${m.getFullYear()}.${String(m.getMonth() + 1).padStart(2, '0')}.${String(m.getDate()).padStart(2, '0')} 起 · 共 ${t.totalWeeks} 周`;
+      const actions = document.createElement('div');
+      actions.className = 'term-actions';
+      if (t.id !== state.activeTermId) {
+        const sw = document.createElement('button');
+        sw.className = 'ghost sm'; sw.textContent = '切换';
+        sw.onclick = () => { switchTerm(t.id); renderSettings(); };
+        actions.appendChild(sw);
+      } else {
+        const cur = document.createElement('span');
+        cur.className = 'tag-current'; cur.textContent = '当前';
+        actions.appendChild(cur);
+      }
+      if (state.terms.length > 1) {
+        const del = document.createElement('button');
+        del.className = 'ghost sm danger'; del.textContent = '删除';
+        del.onclick = () => {
+          if (!confirm(`确定删除「${t.name}」及其所有课程？`)) return;
+          Store.deleteTerm(t.id);
+          reload();
+          renderSettings();
+        };
+        actions.appendChild(del);
+      }
+      row.appendChild(info);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
+  }
+
+  function addTermFlow() {
+    const id = Store.addTerm({ name: '新学期', startDate: Term.toISODate(Term.mondayOf(new Date())), totalWeeks: 20 });
+    Store.setActiveTermId(id);
+    reload();
+    renderSettings();
+    toast('已添加新学期并切换');
+  }
+
   async function refreshSilenceStatus() {
     const el = $('silenceStatus');
     if (!el) return;
@@ -1685,10 +1789,11 @@ window.App = window.App || {};
   }
 
   async function saveSettingsAndReschedule() {
-    const t = Store.getTerm();
+    const t = Store.getActiveTerm();
+    t.name = ($('sTermName').value || '').trim() || t.name;
     t.startDate = $('sStart').value;
     t.totalWeeks = parseInt($('sTotalWeeks').value, 10) || 20;
-    Store.setTerm(t);
+    Store.updateTerm(t);
 
     const s = Store.getSettings();
     s.apiKey = $('sApiKey').value;
@@ -1763,6 +1868,10 @@ window.App = window.App || {};
     $('tabExam').onclick = () => setTab('exam');
     $('btnExport').onclick = exportWeekImage;
     $('btnExportAll').onclick = () => exportWeekImage({ all: true });
+    $('btnShare').onclick = () => exportWeekImage({ share: true });
+    const ts = $('termSelect');
+    if (ts) ts.onchange = () => switchTerm(ts.value);
+    $('btnAddTerm').onclick = addTermFlow;
     document.querySelectorAll('#courseDetail [data-close]').forEach((el) => { el.onclick = () => { $('courseDetail').hidden = true; }; });
     $('btnAddExam').onclick = () => openExam('new');
     $('btnExamCamera').onclick = recognizeExams;

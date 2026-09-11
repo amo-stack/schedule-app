@@ -34,6 +34,12 @@
       </div>
       <button class="ghost sm" id="btnExport">导出</button>
       <button class="ghost sm" id="btnExportAll">导出整学期</button>
+      <button class="ghost sm" id="btnShare">分享</button>
+    </div>
+
+    <div class="termbar">
+      <span class="sub">学期</span>
+      <select id="termSelect" class="term-select"></select>
     </div>
 
     <div id="examWidget" class="exam-widget" hidden></div>
@@ -219,6 +225,13 @@
 
       <section class="card">
         <h2>学期</h2>
+        <p class="sub">切换 / 管理多个学期（如大二上、大二下）</p>
+        <div id="termList" class="term-list"></div>
+        <button class="ghost block" id="btnAddTerm">+ 添加学期</button>
+        <div class="field" style="margin-top:14px">
+          <span>当前学期名称</span>
+          <input type="text" id="sTermName" placeholder="如 大二上">
+        </div>
         <label class="field">
           <span>第一周周一日期</span>
           <input type="date" id="sStart">
